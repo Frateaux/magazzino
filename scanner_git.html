@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Terminale Scanner Magazzino</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        /* Ottimizzazioni per Mobile */
+        body {
+            touch-action: manipulation;
+        }
+
+        .scan-btn {
+            animation: pulse-glow 2s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0% {
+                box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 15px rgba(79, 70, 229, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
+            }
+        }
+
+        .item-card {
+            transition: all 0.2s;
+        }
+
+        .item-card:active {
+            transform: scale(0.98);
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-900 text-white pb-24">
+
+    <!-- Header -->
+    <div
+        class="fixed top-0 w-full bg-gray-800 border-b border-gray-700 z-10 p-4 shadow-lg flex justify-between items-center">
+        <div>
+            <h1 class="text-xl font-bold text-indigo-400">Scanner Magazzino</h1>
+            <p class="text-xs text-gray-400">Modalità raccolta dati</p>
+        </div>
+        <button onclick="downloadJSON()"
+            class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-bold flex items-center">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+            </svg>
+            Esporta
+        </button>
+    </div>
+
+    <!-- Main Content -->
+    <div class="mt-20 px-4">
+
+        <!-- Totali Rapidi -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                <div class="text-gray-400 text-xs uppercase">Scansioni Oggi</div>
+                <div class="text-2xl font-bold text-white" id="scanCount">0</div>
+            </div>
+            <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+                <div class="text-gray-400 text-xs uppercase">Prodotti Movimentati</div>
+                <div class="text-2xl font-bold text-indigo-400" id="productsCount">0</div>
+            </div>
+        </div>
+
+        <!-- Lista Ultimi Movimenti -->
+        <h3 class="text-gray-400 text-sm font-bold uppercase mb-2">Ultimi Movimenti</h3>
+        <div id="logContainer" class="space-y-2">
+            <!-- Popolato via JS -->
+            <div class="text-center text-gray-600 py-8 text-sm italic">Nessuna scansione effettuata</div>
+        </div>
+    </div>
+
+    <!-- Pulsantone Scanner -->
+    <div class="fixed bottom-6 left-0 w-full flex justify-center z-20">
+        <button onclick="toggleScanner()"
+            class="scan-btn bg-indigo-600 text-white rounded-full w-20 h-20 flex items-center justify-center shadow-2xl border-4 border-gray-900">
+            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z">
+                </path>
+            </svg>
+        </button>
+    </div>
+
+    <!-- Scanner Overlay -->
+    <div id="scannerOverlay" class="hidden fixed inset-0 bg-black z-50 flex flex-col">
+        <div class="p-4 flex justify-between items-center bg-black">
+            <span class="text-white font-bold">Inquadra Codice</span>
+            <button onclick="toggleScanner()" class="text-white bg-gray-800 px-3 py-1 rounded">Chiudi</button>
+        </div>
+        <div id="reader" class="flex-grow bg-black"></div>
+        <div class="p-4 bg-gray-900 text-center text-gray-400 text-sm">
+            Tieni il codice al centro
+        </div>
+    </div>
+
+    <!-- Config Modal (Nuovo Codice) -->
+    <div id="configModal"
+        class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-end sm:items-center justify-center">
+        <div class="bg-gray-800 w-full max-w-md p-6 rounded-t-2xl sm:rounded-2xl shadow-2xl border-t border-gray-700">
+            <h3 class="text-xl font-bold text-white mb-1">Nuovo Codice Rilevato</h3>
+            <p class="text-indigo-400 font-mono text-sm mb-4" id="modalBarcode">---</p>
+
+            <label class="block text-xs text-gray-400 uppercase mb-1">Associa a Prodotto</label>
+            <select id="modalProduct"
+                class="w-full bg-gray-700 text-white p-3 rounded-lg mb-4 border border-gray-600 focus:border-indigo-500 outline-none">
+                <!-- Prodotti -->
+            </select>
+
+            <label class="block text-xs text-gray-400 uppercase mb-1">Quantità nella scatola (Pezzi)</label>
+            <div class="flex items-center mb-6">
+                <button onclick="adjQty(-1)" class="bg-gray-600 p-3 rounded-l-lg">-</button>
+                <input type="number" id="modalQty" value="1"
+                    class="w-full bg-gray-900 text-center text-white p-3 border-y border-gray-600 font-bold text-lg">
+                <button onclick="adjQty(1)" class="bg-gray-600 p-3 rounded-r-lg">+</button>
+            </div>
+
+            <button onclick="saveConfig()"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-lg text-lg">
+                Salva e Aggiungi
+            </button>
+        </div>
+    </div>
+
+    <!-- Audio -->
+    <audio id="beepOk" src="https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3"></audio>
+    <audio id="beepNew" src="https://assets.mixkit.co/sfx/preview/mixkit-positive-notification-951.mp3"></audio>
+
+    <script>
+        // --- DATABASE PRODOTTI (Preso dal tuo file, solo ID e Nomi) ---
+        const productList = [
+            { id: 1, name: "BBRAUN - XEVONTA 1,5" },
+            { id: 2, name: "BBRAUN - XEVONTA 1.8" },
+            { id: 3, name: "BBRAUN - DIACAP" },
+            { id: 4, name: "GAMBRO - NEPHRAL 400" },
+            { id: 5, name: "GAMBRO - U-9000" },
+            { id: 6, name: "ESTOR - BK 1.3 F" },
+            { id: 7, name: "ESTOR - BK 1.6 F" },
+            { id: 8, name: "ESTOR - BK 2.1 F" },
+            { id: 9, name: "ESTOR - BG 1.6U" },
+            { id: 10, name: "ESTOR - TORALIGTH NV 15U" },
+            { id: 11, name: "BELLCO - KIT HER LINEE" },
+            { id: 12, name: "GAMBRO - ARTIS" },
+            { id: 13, name: "GAMBRO - EVACLEAN" },
+            { id: 14, name: "BBRAUN - LINEE SENZA SET" },
+            { id: 15, name: "BBRAUN - LINEE CON SET" },
+            { id: 16, name: "BBRAUN - LINEE MONOAGO" },
+            { id: 17, name: "BBRAUN - 874" },
+            { id: 18, name: "GAMBRO - HOSPASOL" },
+            { id: 19, name: "GAMBRO - SAFEBAG KB" },
+            { id: 20, name: "GENERICO - PRONTOPRIME" },
+            { id: 21, name: "BBRAUN - BICART" },
+            { id: 22, name: "BELLCO - BIFLEXY BICARBON." },
+            { id: 23, name: "BELLCO - LYMPHA SOL ACIDA" },
+            { id: 24, name: "AGHI - 15 G" },
+            { id: 25, name: "AGHI - 16 G" },
+            { id: 26, name: "AGHI - MONOAGO" },
+            { id: 27, name: "COVIDIEN - CVC 11-15" },
+            { id: 28, name: "COVIDIEN - CVC 11-20" },
+            { id: 29, name: "GAMBRO - CLEARCART A" },
+            { id: 30, name: "GAMBRO - CLEARCART C" },
+            { id: 31, name: "MAROVAN - SALE PER OSMOSI" },
+            { id: 32, name: "ESTOR - FISTO BLOCK" },
+            { id: 33, name: "GENERICO - PREMIFISTOLA" },
+            { id: 34, name: "GENERICO - KIT CVC" },
+            { id: 35, name: "GENERICO - KIT FAV" },
+            { id: 36, name: "GENERICO - TAURO LOCK URO" },
+            { id: 37, name: "GENERICO - TAURO LOCK EPA" },
+            { id: 38, name: "GENERICO - IVOR 3500" },
+            { id: 39, name: "GENERICO - IVOR 2500" }
+        ];
+
+        // --- STATE ---
+        // mappings: { "BARCODE123": { productId: 1, boxQty: 10 } }
+        let mappings = JSON.parse(localStorage.getItem('scanner_mappings') || '{}');
+        // inventory: { 1: 50, 2: 30 } (ID Prodotto -> Quantità Totale)
+        let inventory = JSON.parse(localStorage.getItem('scanner_inventory') || '{}');
+        // logs: Array di ultime scansioni
+        let logs = [];
+
+        // --- INIT ---
+        function init() {
+            const select = document.getElementById('modalProduct');
+            productList.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.text = p.name;
+                select.appendChild(opt);
+            });
+            updateDashboard();
+        }
+
+        // --- SCANNER LOGIC ---
+        let scanner = null;
+        let isProcessing = false;
+
+        function toggleScanner() {
+            const overlay = document.getElementById('scannerOverlay');
+            if (overlay.classList.contains('hidden')) {
+                overlay.classList.remove('hidden');
+                scanner = new Html5Qrcode("reader");
+                scanner.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, onScanSuccess)
+                    .catch(err => alert("Errore fotocamera: " + err));
+            } else {
+                overlay.classList.add('hidden');
+                if (scanner) scanner.stop().then(() => scanner.clear());
+            }
+        }
+
+        function onScanSuccess(decodedText) {
+            if (isProcessing) return;
+            isProcessing = true;
+
+            if (mappings[decodedText]) {
+                // CODICE NOTO
+                const map = mappings[decodedText];
+                addStock(map.productId, map.boxQty);
+                document.getElementById('beepOk').play();
+                // Feedback Veloce
+                // alert(`Aggiunti ${map.boxQty} pezzi!`); // Rimosso per fluidità, usiamo log
+                setTimeout(() => isProcessing = false, 1500); // Debounce
+            } else {
+                // CODICE NUOVO
+                if (scanner) scanner.stop();
+                document.getElementById('scannerOverlay').classList.add('hidden');
+                document.getElementById('beepNew').play();
+                showConfigModal(decodedText);
+            }
+        }
+
+        // --- LOGICA AGGIUNTA ---
+        function addStock(productId, qty) {
+            if (!inventory[productId]) inventory[productId] = 0;
+            inventory[productId] += parseInt(qty);
+
+            // Log
+            const prod = productList.find(p => p.id === productId);
+            logs.unshift({ time: new Date().toLocaleTimeString(), name: prod.name, qty: `+${qty}` });
+            if (logs.length > 50) logs.pop();
+
+            save();
+            updateDashboard();
+        }
+
+        function showConfigModal(barcode) {
+            document.getElementById('configModal').classList.remove('hidden');
+            document.getElementById('modalBarcode').innerText = barcode;
+            document.getElementById('modalQty').value = 1;
+        }
+
+        function adjQty(delta) {
+            const input = document.getElementById('modalQty');
+            let val = parseInt(input.value) + delta;
+            if (val < 1) val = 1;
+            input.value = val;
+        }
+
+        function saveConfig() {
+            const barcode = document.getElementById('modalBarcode').innerText;
+            const productId = parseInt(document.getElementById('modalProduct').value);
+            const qty = parseInt(document.getElementById('modalQty').value);
+
+            mappings[barcode] = { productId, boxQty: qty };
+
+            document.getElementById('configModal').classList.add('hidden');
+
+            // Esegue l'aggiunta per la scansione corrente
+            addStock(productId, qty);
+
+            save();
+            isProcessing = false; // Reset lock
+        }
+
+        // --- UI UTILS ---
+        function updateDashboard() {
+            // Counters
+            document.getElementById('scanCount').innerText = logs.length; // Semplificato per demo
+            document.getElementById('productsCount').innerText = Object.keys(inventory).length;
+
+            // Logs
+            const container = document.getElementById('logContainer');
+            container.innerHTML = '';
+            if (logs.length === 0) {
+                container.innerHTML = '<div class="text-center text-gray-600 py-4 italic">Pronto a scansionare</div>';
+            } else {
+                logs.slice(0, 10).forEach(log => {
+                    const el = document.createElement('div');
+                    el.className = 'bg-gray-800 p-3 rounded flex justify-between items-center border-l-4 border-indigo-500 item-card';
+                    el.innerHTML = `
+                    <div>
+                        <div class="font-bold text-sm text-gray-200">${log.name}</div>
+                        <div class="text-xs text-gray-500">${log.time}</div>
+                    </div>
+                    <div class="text-xl font-bold text-green-400">${log.qty}</div>
+                `;
+                    container.appendChild(el);
+                });
+            }
+        }
+
+        function save() {
+            localStorage.setItem('scanner_mappings', JSON.stringify(mappings));
+            localStorage.setItem('scanner_inventory', JSON.stringify(inventory));
+        }
+
+        function downloadJSON() {
+            // Prepara il formato per la React App
+            // La React App si aspetta un array di item con "stock" aggiornato
+            const dataExport = {
+                timestamp: new Date().toISOString(),
+                source: "android_scanner_v1",
+                inventory: inventory // mappa { id: qty }
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataExport));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "scansioni_magazzino.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        init();
+    </script>
+</body>
+
+</html>
