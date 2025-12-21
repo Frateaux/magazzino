@@ -19,15 +19,6 @@
         }
         .item-card { transition: all 0.2s; }
         .item-card:active { transform: scale(0.98); background-color: #f3f4f6; }
-
-        /* Animazione Flash Conferma */
-        @keyframes flash-green {
-            0% { background-color: rgba(16, 185, 129, 0.6); }
-            100% { background-color: transparent; }
-        }
-        .flash-active {
-            animation: flash-green 0.5s ease-out;
-        }
     </style>
 </head>
 <body class="bg-gray-900 text-white pb-24">
@@ -35,8 +26,8 @@
     <!-- Header -->
     <div class="fixed top-0 w-full bg-gray-800 border-b border-gray-700 z-10 p-4 shadow-lg flex justify-between items-center">
         <div>
-            <h1 class="text-xl font-bold text-indigo-400">Scanner V2</h1>
-            <p class="text-xs text-gray-400">Lettura rapida attiva</p>
+            <h1 class="text-xl font-bold text-indigo-400">Scanner Manuale</h1>
+            <p class="text-xs text-gray-400">Lettura passo-passo</p>
         </div>
         <button onclick="downloadJSON()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-bold flex items-center">
             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
@@ -67,34 +58,54 @@
         </div>
     </div>
 
-    <!-- Pulsantone Scanner -->
+    <!-- Pulsantone Scanner (Home) -->
     <div class="fixed bottom-6 left-0 w-full flex justify-center z-20">
-        <button onclick="toggleScanner()" class="scan-btn bg-indigo-600 text-white rounded-full w-20 h-20 flex items-center justify-center shadow-2xl border-4 border-gray-900">
+        <button onclick="startScanner()" class="scan-btn bg-indigo-600 text-white rounded-full w-20 h-20 flex items-center justify-center shadow-2xl border-4 border-gray-900">
             <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
         </button>
     </div>
 
-    <!-- Scanner Overlay -->
+    <!-- Scanner Overlay (Fotocamera) -->
     <div id="scannerOverlay" class="hidden fixed inset-0 bg-black z-50 flex flex-col relative">
         <div class="p-4 flex justify-between items-center bg-black z-20">
             <span class="text-white font-bold">Inquadra Codice</span>
-            <button onclick="toggleScanner()" class="text-white bg-gray-800 px-3 py-1 rounded">Chiudi</button>
+            <button onclick="stopScannerAndClose()" class="text-white bg-gray-800 px-3 py-1 rounded">Chiudi</button>
         </div>
         
-        <!-- Area Fotocamera -->
         <div class="flex-grow relative bg-black">
             <div id="reader" class="w-full h-full"></div>
-            
-            <!-- Feedback Overlay (Flash Verde e Testo) -->
-            <div id="feedbackOverlay" class="absolute inset-0 pointer-events-none hidden flex items-center justify-center z-30">
-                <div class="bg-green-600 text-white px-6 py-4 rounded-xl shadow-2xl transform scale-125 font-bold text-2xl border-4 border-white">
-                    <span id="feedbackText">PRESO!</span>
-                </div>
-            </div>
         </div>
 
         <div class="p-4 bg-gray-900 text-center text-gray-400 text-sm z-20">
-            Tieni il codice al centro
+            Centra il codice nel riquadro
+        </div>
+    </div>
+
+    <!-- Result Modal (Successo & Prossimo) -->
+    <div id="resultModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-95 z-50 flex flex-col items-center justify-center p-6">
+        <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl border border-gray-700">
+            
+            <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+            </div>
+
+            <h2 class="text-2xl font-bold text-white mb-1">Scansione OK!</h2>
+            <div class="text-indigo-300 font-mono text-sm mb-4" id="resBarcode">...</div>
+            
+            <div class="bg-gray-700 rounded-lg p-4 mb-6">
+                <div class="text-gray-400 text-xs uppercase mb-1">Prodotto</div>
+                <div class="text-lg font-bold text-white leading-tight mb-2" id="resProduct">Nome Prodotto</div>
+                <div class="border-t border-gray-600 pt-2 flex justify-between items-center">
+                    <span class="text-gray-400 text-xs uppercase">Quantità Aggiunta</span>
+                    <span class="text-2xl font-bold text-green-400" id="resQty">+0</span>
+                </div>
+            </div>
+
+            <button onclick="startScanner()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl text-xl shadow-lg transform transition active:scale-95 flex items-center justify-center">
+                <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                SCANSIONA PROSSIMO
+            </button>
+            <button onclick="closeResultModal()" class="mt-4 text-gray-500 text-sm underline">Torna al menu</button>
         </div>
     </div>
 
@@ -191,74 +202,96 @@
     let scanner = null;
     let isProcessing = false;
 
-    function toggleScanner() {
+    function startScanner() {
+        // Chiudi eventuali modali aperti
+        document.getElementById('resultModal').classList.add('hidden');
+        document.getElementById('configModal').classList.add('hidden');
+        
         const overlay = document.getElementById('scannerOverlay');
-        if (overlay.classList.contains('hidden')) {
-            overlay.classList.remove('hidden');
-            scanner = new Html5Qrcode("reader");
-            
-            // Configurazione per lettura rapida e continua
-            const config = { 
-                fps: 15, // Aumentati FPS
-                qrbox: 250,
-                aspectRatio: 1.0
-            };
+        overlay.classList.remove('hidden');
+        
+        isProcessing = false; // Reset lock
 
-            scanner.start({ facingMode: "environment" }, config, onScanSuccess)
-                .catch(err => {
-                    alert("Errore fotocamera: " + err);
-                    overlay.classList.add('hidden');
-                });
+        if (!scanner) {
+            scanner = new Html5Qrcode("reader");
+        }
+        
+        const config = { fps: 10, qrbox: 250, aspectRatio: 1.0 };
+
+        scanner.start({ facingMode: "environment" }, config, onScanSuccess)
+            .catch(err => {
+                console.error("Errore cam:", err);
+                alert("Impossibile avviare fotocamera. Ricarica la pagina.");
+                overlay.classList.add('hidden');
+            });
+    }
+
+    function stopScannerAndClose() {
+        if (scanner) {
+            scanner.stop().then(() => {
+                document.getElementById('scannerOverlay').classList.add('hidden');
+            }).catch(err => {
+                console.error("Errore stop", err);
+                document.getElementById('scannerOverlay').classList.add('hidden');
+            });
         } else {
-            overlay.classList.add('hidden');
-            if (scanner) scanner.stop().then(() => scanner.clear());
+            document.getElementById('scannerOverlay').classList.add('hidden');
         }
     }
 
     function onScanSuccess(decodedText) {
-        if (isProcessing) return; // Blocco letture multiple istantanee
-        
-        isProcessing = true; // Attivo il blocco
+        if (isProcessing) return;
+        isProcessing = true; 
 
+        // 1. Ferma Scanner immediatamente (Stop & Go)
+        if(scanner) {
+            scanner.stop().then(() => {
+                document.getElementById('scannerOverlay').classList.add('hidden');
+                processScan(decodedText);
+            }).catch(err => {
+                console.error("Stop error", err);
+                // Fallback se stop fallisce: nascondi comunque e processa
+                document.getElementById('scannerOverlay').classList.add('hidden');
+                processScan(decodedText);
+            });
+        }
+    }
+
+    function processScan(decodedText) {
         if (mappings[decodedText]) {
             // CODICE NOTO
             const map = mappings[decodedText];
             addStock(map.productId, map.boxQty);
             
-            // 1. Audio
+            // Audio Bip
             const audio = document.getElementById('beepOk');
-            audio.currentTime = 0; // Reset audio per suonare subito
-            audio.play().catch(e => console.log("Audio bloccato dal browser"));
+            audio.currentTime = 0; 
+            audio.play().catch(e => console.log("Audio non permesso"));
 
-            // 2. Visual Feedback (Flash)
-            showFeedback(map.boxQty);
-
-            // 3. Sblocco dopo 1 secondo (tempo per spostare la mano)
-            setTimeout(() => { isProcessing = false; }, 1000);
+            // Mostra Modale Risultato (Pulsante Avanti)
+            showResultModal(decodedText, map);
 
         } else {
             // CODICE NUOVO
-            if (scanner) scanner.stop(); // Fermo temporaneamente
-            document.getElementById('beepNew').play();
+            const audio = document.getElementById('beepNew');
+            audio.currentTime = 0; 
+            audio.play();
             showConfigModal(decodedText);
-            // Nota: isProcessing rimarrà true finché non si salva
         }
     }
 
-    // Effetto Visivo Flash
-    function showFeedback(qty) {
-        const overlay = document.getElementById('feedbackOverlay');
-        const text = document.getElementById('feedbackText');
+    function showResultModal(barcode, map) {
+        const prod = productList.find(p => p.id === map.productId);
+        document.getElementById('resBarcode').innerText = barcode;
+        document.getElementById('resProduct').innerText = prod ? prod.name : "Sconosciuto";
+        document.getElementById('resQty').innerText = `+${map.boxQty}`;
         
-        text.innerText = `+${qty} AGGIUNTO!`;
-        overlay.classList.remove('hidden');
-        overlay.classList.add('flash-active');
-        
-        // Rimuovi effetto dopo 500ms
-        setTimeout(() => {
-            overlay.classList.remove('flash-active');
-            overlay.classList.add('hidden');
-        }, 600);
+        document.getElementById('resultModal').classList.remove('hidden');
+    }
+
+    function closeResultModal() {
+        document.getElementById('resultModal').classList.add('hidden');
+        // Non riavvia scanner, torna alla home
     }
 
     // --- LOGICA AGGIUNTA ---
@@ -272,12 +305,10 @@
         if (logs.length > 50) logs.pop();
 
         save();
-        updateDashboard(); // Aggiorna i contatori sotto, anche se coperti
+        updateDashboard(); 
     }
 
     function showConfigModal(barcode) {
-        // Nascondi overlay scanner ma non chiuderlo del tutto logicamente
-        document.getElementById('scannerOverlay').classList.add('hidden');
         document.getElementById('configModal').classList.remove('hidden');
         document.getElementById('modalBarcode').innerText = barcode;
         document.getElementById('modalQty').value = 1;
@@ -299,13 +330,11 @@
         
         document.getElementById('configModal').classList.add('hidden');
         
-        // Esegue l'aggiunta per la prima volta
+        // Esegue l'aggiunta e poi mostra il risultato per conferma
         addStock(productId, qty);
-        save();
-
-        // Riapri lo scanner automaticamente
-        isProcessing = false;
-        toggleScanner(); 
+        
+        // Simula il comportamento "Codice Noto" per mostrare il pulsante "Avanti"
+        showResultModal(barcode, { productId, boxQty: qty });
     }
 
     // --- UI UTILS ---
