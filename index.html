@@ -22,9 +22,10 @@
         .toggle-checkbox:checked + .toggle-label { background-color: #ef4444; }
         
         /* Indicatore Online/Offline */
-        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; }
-        .status-online { background-color: #10b981; box-shadow: 0 0 5px #10b981; }
-        .status-offline { background-color: #ef4444; }
+        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; transition: all 0.3s; }
+        .status-online { background-color: #10b981; box-shadow: 0 0 8px #10b981; }
+        .status-offline { background-color: #ef4444; box-shadow: 0 0 0px #ef4444; }
+        .status-text { font-size: 10px; margin-left: 4px; font-weight: normal; opacity: 0.8; }
     </style>
 </head>
 <body class="bg-gray-900 text-white pb-32">
@@ -33,11 +34,12 @@
     <div class="fixed top-0 w-full bg-gray-800 border-b border-gray-700 z-30 p-3 shadow-lg">
         <div class="flex justify-between items-center mb-2">
             <h1 class="text-lg font-bold text-indigo-400 flex items-center">
-                <div id="connectionStatus" class="status-dot status-offline mr-2"></div>
-                Magazzino Cloud
+                <div id="connectionStatus" class="status-dot status-offline"></div>
+                <span id="connectionText" class="status-text text-gray-400">OFFLINE</span>
+                <span class="ml-2">Magazzino</span>
             </h1>
             <div class="flex space-x-2">
-                <button id="btnExportJson" class="bg-gray-700 hover:bg-gray-600 text-xs text-white px-2 py-1 rounded border border-gray-600">JSON</button>
+                <button id="btnExportJson" class="bg-gray-700 hover:bg-gray-600 text-xs text-white px-2 py-1 rounded border border-gray-600">Backup JSON</button>
             </div>
         </div>
 
@@ -81,7 +83,7 @@
             <span class="text-[10px] text-indigo-400 animate-pulse hidden" id="syncIndicator">Sync...</span>
         </h3>
         <div id="logContainer" class="space-y-2 pb-20">
-            <div class="text-center text-gray-600 py-8 text-sm italic">In attesa di dati dal cloud...</div>
+            <div class="text-center text-gray-600 py-8 text-sm italic">In attesa di dati...</div>
         </div>
     </div>
 
@@ -107,39 +109,56 @@
         </div>
     </div>
 
+    <!-- CONFIRM TRANSACTION MODAL -->
+    <div id="scanConfirmModal" class="hidden fixed inset-0 bg-black bg-opacity-95 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-sm">
+        <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl border border-gray-700">
+            <h2 class="text-2xl font-bold text-white mb-1" id="confirmTitle">Conferma Carico</h2>
+            <div class="text-indigo-300 text-sm mb-4 font-mono" id="confirmBarcode">...</div>
+            <div class="bg-gray-700/50 rounded-lg p-4 mb-4 border border-gray-600">
+                <div class="text-gray-400 text-xs uppercase mb-1">Prodotto</div>
+                <div class="text-xl font-bold text-white leading-tight mb-2" id="confirmProduct">...</div>
+                <div class="text-xs text-gray-400">Contenuto: <span id="confirmBoxQty" class="text-white font-bold">...</span> pezzi/collo</div>
+            </div>
+            <label class="block text-xs text-gray-400 uppercase mb-2 font-bold text-left">Quanti colli/scatole?</label>
+            <div class="flex items-center mb-4">
+                <button id="btnConfirmMinus" class="bg-gray-600 hover:bg-gray-500 w-16 py-4 rounded-l-xl text-xl font-bold text-white border-r border-gray-700">-</button>
+                <input type="number" id="confirmInputQty" value="1" class="w-full bg-gray-900 text-center text-white py-4 border-y border-gray-700 font-bold text-3xl focus:outline-none focus:border-indigo-500">
+                <button id="btnConfirmPlus" class="bg-gray-600 hover:bg-gray-500 w-16 py-4 rounded-r-xl text-xl font-bold text-white border-l border-gray-700">+</button>
+            </div>
+            <div class="text-right mb-6 text-sm">
+                <span class="text-gray-400">Totale Pezzi: </span>
+                <span class="text-2xl font-bold text-green-400" id="confirmTotalPreview">0</span>
+            </div>
+            <div class="space-y-3">
+                <button id="btnConfirmAction" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl text-xl shadow-lg flex items-center justify-center">CONFERMA</button>
+                <button id="btnConfirmCancel" class="w-full bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium py-3 rounded-xl flex items-center justify-center border border-gray-600">Annulla</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Result Modal -->
     <div id="resultModal" class="hidden fixed inset-0 bg-black bg-opacity-95 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-sm">
         <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl border border-gray-700">
             <div id="resultIconCtx" class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg bg-green-500">
                 <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
             </div>
-            <h2 class="text-3xl font-bold text-white mb-2" id="resTitle">PRESO!</h2>
-            <div class="bg-gray-700/50 rounded-lg p-4 mb-4 border border-gray-600">
-                <div class="text-gray-400 text-xs uppercase mb-1">Prodotto</div>
-                <div class="text-xl font-bold text-white leading-tight mb-3" id="resProduct">...</div>
-                <div class="flex justify-between items-end border-t border-gray-600 pt-3">
-                    <div class="text-left"><div class="text-xs text-gray-400">Barcode</div><div class="font-mono text-indigo-300 text-sm" id="resBarcode">...</div></div>
-                    <div class="text-right"><div class="text-xs text-gray-400">Quantità</div><div class="text-3xl font-bold text-green-400" id="resQty">+0</div></div>
-                </div>
-            </div>
+            <h2 class="text-3xl font-bold text-white mb-4">SALVATO!</h2>
             <div class="space-y-3">
-                <button id="btnNextScan" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl text-xl shadow-lg flex items-center justify-center">PROSSIMO</button>
-                <button id="btnEditMap" class="w-full bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium py-3 rounded-xl flex items-center justify-center border border-gray-600">Modifica</button>
+                <button id="btnNextScan" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl text-xl shadow-lg flex items-center justify-center">PROSSIMA SCATOLA</button>
             </div>
-            <button id="btnCloseRes" class="mt-4 text-gray-500 text-sm hover:text-white transition-colors">Chiudi</button>
         </div>
     </div>
 
     <!-- Config Modal -->
     <div id="configModal" class="hidden fixed inset-0 bg-black bg-opacity-95 z-50 flex items-center justify-center px-4">
         <div class="bg-gray-800 w-full max-w-md p-6 rounded-2xl shadow-2xl border border-gray-600">
-            <h3 class="text-xl font-bold text-white mb-1" id="configTitle">Configura</h3>
+            <h3 class="text-xl font-bold text-white mb-1" id="configTitle">Configura Prodotto</h3>
             <p class="text-indigo-400 font-mono text-sm mb-6 bg-gray-900 p-2 rounded text-center border border-gray-700" id="modalBarcode">---</p>
-            <label class="block text-xs text-gray-400 uppercase mb-2 font-bold">1. Prodotto</label>
+            <label class="block text-xs text-gray-400 uppercase mb-2 font-bold">1. Che prodotto è?</label>
             <div class="relative mb-6">
                 <select id="modalProduct" class="w-full bg-gray-700 text-white p-4 pr-8 rounded-xl border border-gray-600 focus:border-indigo-500 outline-none appearance-none font-bold text-lg"></select>
             </div>
-            <label class="block text-xs text-gray-400 uppercase mb-2 font-bold">2. Pezzi per Collo</label>
+            <label class="block text-xs text-gray-400 uppercase mb-2 font-bold">2. Pezzi dentro UNA scatola</label>
             <div class="flex items-center mb-8">
                 <button id="btnQtyMinus" class="bg-gray-600 hover:bg-gray-500 w-16 py-4 rounded-l-xl text-xl font-bold text-white border-r border-gray-700">-</button>
                 <input type="number" id="modalQty" value="1" class="w-full bg-gray-900 text-center text-white py-4 border-y border-gray-700 font-bold text-2xl focus:outline-none">
@@ -147,7 +166,7 @@
             </div>
             <div class="grid grid-cols-2 gap-3">
                 <button id="btnCloseConfig" class="w-full bg-gray-700 text-gray-300 font-bold py-3 rounded-xl">Annulla</button>
-                <button id="btnSaveConfig" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg">Salva</button>
+                <button id="btnSaveConfig" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg">Salva e Continua</button>
             </div>
         </div>
     </div>
@@ -178,9 +197,10 @@
     <!-- LOGICA APP CON FIREBASE -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        // Importiamo enableIndexedDbPersistence per il supporto OFFLINE
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, doc, setDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // --- CONFIGURAZIONE FIREBASE INSERITA ---
+        // --- CONFIGURAZIONE FIREBASE ---
         const firebaseConfig = {
             apiKey: "AIzaSyCmctDOMIQMECm1TZWP5mqdQj125JoAb0U",
             authDomain: "magazzinoapp-da238.firebaseapp.com",
@@ -190,18 +210,49 @@
             appId: "1:661006798558:web:54c5ff86daee54bee77c4f"
         };
 
-        // Inizializzazione Firebase
         let db;
         try {
             const app = initializeApp(firebaseConfig);
             db = getFirestore(app);
-            document.getElementById('connectionStatus').classList.remove('status-offline');
-            document.getElementById('connectionStatus').classList.add('status-online');
-            console.log("Firebase Connesso con successo");
+            
+            // --- ATTIVAZIONE PERSISTENZA OFFLINE ---
+            enableIndexedDbPersistence(db)
+                .catch((err) => {
+                    if (err.code == 'failed-precondition') {
+                        console.warn("Persistenza fallita: Più tab aperti.");
+                    } else if (err.code == 'unimplemented') {
+                        console.warn("Il browser non supporta la persistenza offline.");
+                    }
+                });
+            
         } catch (e) {
-            console.error("Errore Inizializzazione Firebase:", e);
-            alert("Errore di connessione a Firebase. Controlla la console.");
+            console.error(e);
+            alert("Errore Firebase. Controlla console.");
         }
+
+        // --- GESTIONE STATO CONNESSIONE UI ---
+        const connStatusDot = document.getElementById('connectionStatus');
+        const connStatusText = document.getElementById('connectionText');
+
+        function updateOnlineStatus() {
+            if (navigator.onLine) {
+                connStatusDot.classList.remove('status-offline');
+                connStatusDot.classList.add('status-online');
+                connStatusText.innerText = "ONLINE";
+                connStatusText.classList.remove('text-red-400');
+                connStatusText.classList.add('text-green-400');
+            } else {
+                connStatusDot.classList.remove('status-online');
+                connStatusDot.classList.add('status-offline');
+                connStatusText.innerText = "OFFLINE (Salvataggio locale)";
+                connStatusText.classList.remove('text-green-400');
+                connStatusText.classList.add('text-red-400');
+            }
+        }
+
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus(); // Check iniziale
 
         // --- DATABASE PRODOTTI ---
         const productList = [
@@ -227,12 +278,11 @@
             { id: 39, name: "GENERICO - IVOR 2500" }
         ];
 
-        // --- STATO LOCALE (Cache veloce) ---
         let mappings = JSON.parse(localStorage.getItem('scanner_mappings') || '{}');
-        let logsData = []; // Dati live da Firebase
+        let logsData = [];
         let sessionSettings = JSON.parse(localStorage.getItem('scanner_session_settings') || '{"operator":"", "mode":"IN"}');
+        let currentMap = null; 
 
-        // --- INIT ---
         function init() {
             const select = document.getElementById('modalProduct');
             productList.forEach(p => {
@@ -241,70 +291,39 @@
                 opt.text = p.name;
                 select.appendChild(opt);
             });
-
             document.getElementById('operatorName').value = sessionSettings.operator;
             if(sessionSettings.mode === 'OUT') document.getElementById('modeToggle').checked = true;
             updateModeUI();
             setupFirebaseListeners();
         }
 
-        // --- FIREBASE SYNC ---
         function setupFirebaseListeners() {
             if(!db) return;
-
-            // 1. Ascolta i log (ultimi 100 movimenti) in Tempo Reale
+            // La query include i dati locali "in attesa" automaticamente grazie al comportamento di Firestore
             const q = query(collection(db, "movements"), orderBy("timestamp", "desc"), limit(100));
             onSnapshot(q, (snapshot) => {
+                const source = snapshot.metadata.hasPendingWrites ? "Locale" : "Server";
+                console.log("Dati ricevuti da: " + source);
+                
                 document.getElementById('syncIndicator').classList.remove('hidden');
-                
                 logsData = [];
-                snapshot.forEach((doc) => {
-                    logsData.push({ id: doc.id, ...doc.data() });
-                });
-                
+                snapshot.forEach((doc) => { logsData.push({ id: doc.id, ...doc.data() }); });
                 updateDashboard();
                 setTimeout(() => document.getElementById('syncIndicator').classList.add('hidden'), 500);
             });
-
-            // 2. Sincronizza Mappature
             const mapRef = doc(db, "settings", "mappings");
             onSnapshot(mapRef, (docSnap) => {
                 if (docSnap.exists()) {
-                    const serverMappings = docSnap.data();
-                    // Merge intelligente
-                    mappings = { ...mappings, ...serverMappings };
+                    mappings = { ...mappings, ...docSnap.data() };
                     localStorage.setItem('scanner_mappings', JSON.stringify(mappings));
                 }
             });
         }
 
-        async function pushMovementToCloud(logEntry) {
-            if(!db) {
-                logsData.unshift(logEntry);
-                updateDashboard();
-                return;
-            }
-            try {
-                await addDoc(collection(db, "movements"), logEntry);
-            } catch (e) {
-                console.error("Errore scrittura", e);
-                alert("Errore salvataggio Cloud: " + e.message);
-            }
-        }
-
-        async function pushMappingToCloud(barcode, mapData) {
-            if(!db) return;
-            const mapRef = doc(db, "settings", "mappings");
-            await setDoc(mapRef, { [barcode]: mapData }, { merge: true });
-        }
-
-
-        // --- LOGICA UI & SCANNER ---
+        // --- HANDLERS ---
         const btnStart = document.getElementById('btnStartScan');
         const btnStop = document.getElementById('btnStopScan');
         const btnNext = document.getElementById('btnNextScan');
-        const btnEdit = document.getElementById('btnEditMap');
-        const btnCloseRes = document.getElementById('btnCloseRes');
         
         let scanner = null;
         let isProcessing = false;
@@ -312,21 +331,27 @@
 
         btnStart.addEventListener('click', startScanner);
         btnStop.addEventListener('click', stopScannerAndClose);
-        btnNext.addEventListener('click', startScanner);
-        btnEdit.addEventListener('click', editMappingFromModal);
-        btnCloseRes.addEventListener('click', closeResultModal);
+        btnNext.addEventListener('click', () => {
+            document.getElementById('resultModal').classList.add('hidden');
+            startScanner();
+        });
 
-        // Session Config Listeners
-        document.getElementById('operatorName').addEventListener('change', saveSessionSettings);
-        document.getElementById('modeToggle').addEventListener('click', toggleMode);
-        
-        // Modal Config Listeners
-        document.getElementById('btnQtyMinus').addEventListener('click', () => adjQty(-1));
-        document.getElementById('btnQtyPlus').addEventListener('click', () => adjQty(1));
+        document.getElementById('btnQtyMinus').addEventListener('click', () => adjQty('modalQty', -1));
+        document.getElementById('btnQtyPlus').addEventListener('click', () => adjQty('modalQty', 1));
         document.getElementById('btnCloseConfig').addEventListener('click', closeConfigModal);
         document.getElementById('btnSaveConfig').addEventListener('click', saveConfig);
 
-        // Summary Listeners
+        document.getElementById('btnConfirmMinus').addEventListener('click', () => { adjQty('confirmInputQty', -1); updateConfirmPreview(); });
+        document.getElementById('btnConfirmPlus').addEventListener('click', () => { adjQty('confirmInputQty', 1); updateConfirmPreview(); });
+        document.getElementById('confirmInputQty').addEventListener('input', updateConfirmPreview);
+        document.getElementById('btnConfirmAction').addEventListener('click', confirmTransaction);
+        document.getElementById('btnConfirmCancel').addEventListener('click', () => {
+             document.getElementById('scanConfirmModal').classList.add('hidden');
+             startScanner(); 
+        });
+
+        document.getElementById('operatorName').addEventListener('change', saveSessionSettings);
+        document.getElementById('modeToggle').addEventListener('click', toggleMode);
         document.getElementById('btnSummary').addEventListener('click', showSummary);
         document.getElementById('btnCloseSummary').addEventListener('click', closeSummary);
         document.getElementById('btnDownJson').addEventListener('click', downloadJSON);
@@ -339,6 +364,16 @@
             sessionSettings = { operator: op, mode: mode };
             localStorage.setItem('scanner_session_settings', JSON.stringify(sessionSettings));
             updateModeUI();
+            const actionBtn = document.getElementById('btnConfirmAction');
+            if(mode === 'OUT') {
+                actionBtn.innerText = "CONFERMA SCARICO";
+                actionBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                actionBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+            } else {
+                actionBtn.innerText = "CONFERMA CARICO";
+                actionBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                actionBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            }
         }
 
         function toggleMode() { saveSessionSettings(); }
@@ -348,15 +383,12 @@
             const label = document.getElementById('modeLabel');
             const indicator = document.getElementById('modeIndicator');
             const toggleLabel = document.querySelector('.toggle-label');
-            
             if (isOut) {
-                label.innerText = "SCARICO";
-                label.className = "mr-2 text-xs font-bold text-red-500";
+                label.innerText = "SCARICO"; label.classList.replace('text-green-500', 'text-red-500');
                 indicator.className = "absolute bottom-0 left-0 w-full h-1 bg-red-500";
                 toggleLabel.style.backgroundColor = "#ef4444";
             } else {
-                label.innerText = "CARICO";
-                label.className = "mr-2 text-xs font-bold text-green-500";
+                label.innerText = "CARICO"; label.classList.replace('text-red-500', 'text-green-500');
                 indicator.className = "absolute bottom-0 left-0 w-full h-1 bg-green-500";
                 toggleLabel.style.backgroundColor = "#10b981";
             }
@@ -365,24 +397,20 @@
         function unlockAudio() {
             const a1 = document.getElementById('beepOk');
             const a2 = document.getElementById('beepNew');
-            a1.play().then(()=> { a1.pause(); a1.currentTime=0; }).catch(()=>{});
-            a2.play().then(()=> { a2.pause(); a2.currentTime=0; }).catch(()=>{});
+            a1.play().then(()=>{a1.pause();a1.currentTime=0;}).catch(()=>{});
+            a2.play().then(()=>{a2.pause();a2.currentTime=0;}).catch(()=>{});
         }
 
         function startScanner() {
             unlockAudio();
-            document.getElementById('resultModal').classList.add('hidden');
+            document.getElementById('scanConfirmModal').classList.add('hidden');
             document.getElementById('configModal').classList.add('hidden');
             document.getElementById('scannerOverlay').classList.remove('hidden');
             isProcessing = false;
 
             if (!scanner) scanner = new Html5Qrcode("reader");
             scanner.start({ facingMode: "environment" }, { fps: 15, qrbox: 250, aspectRatio: 1.0 }, onScanSuccess)
-                .catch(err => {
-                    console.error(err);
-                    alert("Errore camera: " + err);
-                    document.getElementById('scannerOverlay').classList.add('hidden');
-                });
+                .catch(err => { console.error(err); alert("Errore camera: "+err); document.getElementById('scannerOverlay').classList.add('hidden'); });
         }
 
         function stopScannerAndClose() {
@@ -393,6 +421,9 @@
         function onScanSuccess(decodedText) {
             if (isProcessing) return;
             isProcessing = true;
+            const audio = document.getElementById('beepNew'); 
+            audio.currentTime = 0; audio.play();
+
             if(scanner) scanner.stop().then(() => {
                 document.getElementById('scannerOverlay').classList.add('hidden');
                 processScan(decodedText);
@@ -405,73 +436,50 @@
         function processScan(decodedText) {
             lastScannedCode = decodedText;
             if (mappings[decodedText]) {
-                const map = mappings[decodedText];
-                registerTransaction(map);
-                const audio = document.getElementById('beepOk');
-                audio.currentTime = 0; audio.play().catch(()=>{});
-                showResultModal(decodedText, map);
+                currentMap = mappings[decodedText];
+                showConfirmModal(decodedText, currentMap);
             } else {
-                const audio = document.getElementById('beepNew');
-                audio.currentTime = 0; audio.play();
                 showConfigModal(decodedText, true);
             }
         }
 
-        function registerTransaction(map) {
-            const isOut = sessionSettings.mode === 'OUT';
-            const qty = parseInt(map.boxQty);
-            const finalQty = isOut ? -qty : qty;
+        function showConfirmModal(barcode, map) {
             const prod = productList.find(p => p.id === map.productId);
-            const now = new Date().toISOString();
+            document.getElementById('confirmTitle').innerText = (sessionSettings.mode === 'OUT') ? "Conferma Scarico" : "Conferma Carico";
+            document.getElementById('confirmBarcode').innerText = barcode;
+            document.getElementById('confirmProduct').innerText = prod ? prod.name : "Ignoto";
+            document.getElementById('confirmBoxQty').innerText = map.boxQty;
+            
+            document.getElementById('confirmInputQty').value = 1;
+            setTimeout(() => document.getElementById('confirmInputQty').focus(), 100);
 
-            const logEntry = {
-                timestamp: now,
-                barcode: lastScannedCode,
-                productId: map.productId,
-                productName: prod ? prod.name : "Ignoto",
-                boxQty: qty,
-                totalQty: finalQty,
-                operator: sessionSettings.operator || "Anonimo",
-                type: sessionSettings.mode
-            };
-
-            pushMovementToCloud(logEntry);
+            updateConfirmPreview();
+            saveSessionSettings();
+            document.getElementById('scanConfirmModal').classList.remove('hidden');
         }
 
-        // --- MODALS ---
-        function showResultModal(barcode, map) {
-            const prod = productList.find(p => p.id === map.productId);
-            const isOut = sessionSettings.mode === 'OUT';
-            document.getElementById('resTitle').innerText = isOut ? "SCARICATO!" : "CARICATO!";
-            document.getElementById('resProduct').innerText = prod ? prod.name : "Sconosciuto";
-            document.getElementById('resBarcode').innerText = barcode;
-            const qtyEl = document.getElementById('resQty');
-            const iconCtx = document.getElementById('resultIconCtx');
-            if (isOut) {
-                qtyEl.innerText = `-${map.boxQty}`;
-                qtyEl.className = "text-3xl font-bold text-red-400";
-                iconCtx.className = "w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg bg-red-500";
-            } else {
-                qtyEl.innerText = `+${map.boxQty}`;
-                qtyEl.className = "text-3xl font-bold text-green-400";
-                iconCtx.className = "w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg bg-green-500";
-            }
+        function updateConfirmPreview() {
+            if(!currentMap) return;
+            const boxes = parseInt(document.getElementById('confirmInputQty').value) || 0;
+            const piecesPerBox = parseInt(currentMap.boxQty) || 1;
+            const total = boxes * piecesPerBox;
+            document.getElementById('confirmTotalPreview').innerText = total + " Pezzi";
+        }
+
+        async function confirmTransaction() {
+            const boxes = parseInt(document.getElementById('confirmInputQty').value);
+            if(boxes <= 0) { alert("Quantità non valida"); return; }
+            await registerTransaction(currentMap, boxes);
+            const audio = document.getElementById('beepOk');
+            audio.currentTime = 0; audio.play();
+            document.getElementById('scanConfirmModal').classList.add('hidden');
             document.getElementById('resultModal').classList.remove('hidden');
-        }
-
-        function closeResultModal() { document.getElementById('resultModal').classList.add('hidden'); }
-
-        function editMappingFromModal() {
-            if(lastScannedCode && mappings[lastScannedCode]) {
-                closeResultModal();
-                showConfigModal(lastScannedCode, false);
-            }
         }
 
         function showConfigModal(barcode, isNew) {
             document.getElementById('configModal').classList.remove('hidden');
             document.getElementById('modalBarcode').innerText = barcode;
-            document.getElementById('configTitle').innerText = isNew ? "Nuovo Prodotto" : "Modifica";
+            document.getElementById('configTitle').innerText = isNew ? "Nuovo Prodotto" : "Modifica Config";
             if(mappings[barcode]) {
                 document.getElementById('modalProduct').value = mappings[barcode].productId;
                 document.getElementById('modalQty').value = mappings[barcode].boxQty;
@@ -483,43 +491,73 @@
 
         function closeConfigModal() { document.getElementById('configModal').classList.add('hidden'); }
 
-        function adjQty(delta) {
-            const input = document.getElementById('modalQty');
+        function adjQty(id, delta) {
+            const input = document.getElementById(id);
             let val = parseInt(input.value) + delta;
             if (val < 1) val = 1;
             input.value = val;
         }
 
-        function saveConfig() {
+        async function saveConfig() {
             const barcode = document.getElementById('modalBarcode').innerText;
             const productId = parseInt(document.getElementById('modalProduct').value);
-            const qty = parseInt(document.getElementById('modalQty').value);
+            const boxQty = parseInt(document.getElementById('modalQty').value);
 
-            const newMap = { productId, boxQty: qty };
+            const newMap = { productId, boxQty: boxQty };
             mappings[barcode] = newMap;
             localStorage.setItem('scanner_mappings', JSON.stringify(mappings));
             
-            // Sync al cloud per altri utenti
-            pushMappingToCloud(barcode, newMap);
+            if(db) {
+                const mapRef = doc(db, "settings", "mappings");
+                await setDoc(mapRef, { [barcode]: newMap }, { merge: true });
+            }
 
             closeConfigModal();
+            currentMap = newMap;
+            showConfirmModal(barcode, newMap);
+        }
 
-            if (isProcessing) { 
-                registerTransaction(mappings[barcode]);
-                const audio = document.getElementById('beepOk');
-                audio.currentTime = 0; audio.play();
-                showResultModal(barcode, mappings[barcode]);
-                isProcessing = false; 
+        async function registerTransaction(map, multiplier) {
+            const isOut = sessionSettings.mode === 'OUT';
+            const piecesPerBox = parseInt(map.boxQty);
+            const totalPieces = piecesPerBox * multiplier;
+            
+            const finalQty = isOut ? -totalPieces : totalPieces;
+            const prod = productList.find(p => p.id === map.productId);
+            const now = new Date().toISOString();
+
+            const logEntry = {
+                timestamp: now,
+                barcode: lastScannedCode,
+                productId: map.productId,
+                productName: prod ? prod.name : "Ignoto",
+                boxQty: piecesPerBox,
+                colli: multiplier,
+                totalQty: finalQty,
+                operator: sessionSettings.operator || "Anonimo",
+                type: sessionSettings.mode
+            };
+
+            if(!db) {
+                logsData.unshift(logEntry);
+                updateDashboard();
             } else {
-                alert("Aggiornato!");
+                try {
+                    // Questa operazione, se OFFLINE, scrive su IndexedDB.
+                    // Firebase gestirà la sync automaticamente al ritorno online.
+                    await addDoc(collection(db, "movements"), logEntry);
+                } catch (e) {
+                    // Fallback per errori non previsti, ma se la persistenza è attiva, 
+                    // addDoc non dovrebbe fallire per mancanza di rete.
+                    console.error("Errore scrittura cloud:", e);
+                    alert("Errore salvataggio: " + e.message);
+                }
             }
         }
 
-        // --- DASHBOARD ---
         function updateDashboard() {
             let totalPieces = 0;
             logsData.forEach(log => totalPieces += log.totalQty);
-
             document.getElementById('scanCount').innerText = logsData.length;
             document.getElementById('piecesCount').innerText = totalPieces;
             
@@ -534,11 +572,11 @@
                     const timeStr = log.timestamp ? log.timestamp.split('T')[1].substring(0,5) : "--:--";
                     el.className = `bg-gray-800 p-3 rounded-lg flex justify-between items-center border-l-4 ${isOut ? 'border-red-500' : 'border-green-500'} shadow-sm`;
                     el.innerHTML = `
-                        <div class="overflow-hidden">
+                        <div class="overflow-hidden w-2/3">
                             <div class="font-bold text-sm text-gray-200 truncate">${log.productName}</div>
                             <div class="text-[10px] text-gray-500 flex items-center">
                                 <span class="mr-2 text-indigo-300 font-mono">${timeStr}</span>
-                                <span>${log.operator}</span>
+                                <span>${log.colli} Colli x ${log.boxQty}</span>
                             </div>
                         </div>
                         <div class="text-xl font-bold ${isOut ? 'text-red-400' : 'text-green-400'} whitespace-nowrap ml-2">
@@ -556,61 +594,32 @@
                 if(!summary[log.productId]) summary[log.productId] = { name: log.productName, total: 0 };
                 summary[log.productId].total += log.totalQty;
             });
-
             const tbody = document.getElementById('summaryBody');
             tbody.innerHTML = '';
-            
             Object.values(summary).forEach(item => {
                 if(item.total === 0) return;
                 const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="px-2 py-3 font-medium text-white border-b border-gray-700">${item.name}</td>
-                    <td class="px-2 py-3 text-right font-bold ${item.total < 0 ? 'text-red-400' : 'text-green-400'} border-b border-gray-700">${item.total}</td>
-                `;
+                row.innerHTML = `<td class="px-2 py-3 font-medium text-white border-b border-gray-700">${item.name}</td><td class="px-2 py-3 text-right font-bold ${item.total < 0 ? 'text-red-400' : 'text-green-400'} border-b border-gray-700">${item.total}</td>`;
                 tbody.appendChild(row);
             });
             document.getElementById('summaryModal').classList.remove('hidden');
         }
 
         function closeSummary() { document.getElementById('summaryModal').classList.add('hidden'); }
-
         function downloadJSON() {
-            const dataExport = { timestamp: new Date().toISOString(), logs: logsData };
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(dataExport));
-            const dlAnchor = document.createElement('a');
-            dlAnchor.setAttribute("href", dataStr);
-            dlAnchor.setAttribute("download", `cloud_export_${new Date().toLocaleDateString().replace(/\//g,'-')}.json`);
-            document.body.appendChild(dlAnchor);
-            dlAnchor.click();
-            dlAnchor.remove();
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({timestamp: new Date().toISOString(), logs: logsData}));
+            const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "cloud_export.json"); document.body.appendChild(dl); dl.click(); dl.remove();
         }
-
         function downloadPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             doc.setFillColor(31, 41, 55); doc.rect(0, 0, 210, 20, 'F');
             doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.text("Report Cloud", 14, 13);
-            
-            const summary = {};
-            logsData.forEach(log => {
-                if(!summary[log.productId]) summary[log.productId] = { name: log.productName, total: 0 };
-                summary[log.productId].total += log.totalQty;
-            });
-            const summaryData = Object.values(summary).map(item => [item.name, item.total]);
-            
-            doc.autoTable({ head: [['Prodotto', 'Q.ta']], body: summaryData, startY: 30, theme: 'striped' });
-            
-            const logsRows = logsData.map(log => [
-                log.timestamp.split('T')[1].substring(0,8),
-                log.operator,
-                log.productName,
-                log.totalQty
-            ]);
-            doc.autoTable({ head: [['Ora', 'Op', 'Prodotto', 'Q.ta']], body: logsRows, startY: doc.lastAutoTable.finalY + 10 });
-            
-            doc.save(`report_cloud.pdf`);
+            const logsRows = logsData.map(log => [log.timestamp.split('T')[1].substring(0,8), log.operator, log.productName, log.colli + " Colli", log.totalQty]);
+            doc.autoTable({ head: [['Ora', 'Op', 'Prodotto', 'Dettaglio', 'Tot. Pezzi']], body: logsRows, startY: 30, theme: 'striped' });
+            doc.save(`report.pdf`);
         }
-
+        
         init();
     </script>
 </body>
