@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Magazzino Enterprise v3</title>
+    <title>DiaTrack - Magazzino Digitale</title>
     <!-- Frameworks -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -46,10 +46,6 @@
             background: #f1f5f9;
         }
 
-        .btn-action {
-            @apply flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 transition-all active:scale-95 text-center gap-3;
-        }
-
         #reader {
             width: 100% !important;
             border-radius: 1.5rem !important;
@@ -57,7 +53,7 @@
             border: none !important;
         }
 
-        /* Custom scrollbar for better look */
+        /* Custom scrollbar */
         ::-webkit-scrollbar {
             width: 4px;
         }
@@ -70,6 +66,14 @@
             background: #e2e8f0;
             border-radius: 10px;
         }
+
+        .input-track {
+            @apply w-full px-5 py-4 rounded-2xl border-2 border-slate-100 focus:border-indigo-500 outline-none font-bold text-lg transition-all;
+        }
+
+        .input-notes {
+            @apply w-full px-4 py-2 rounded-xl bg-slate-50 border-none outline-none font-medium text-sm text-slate-600 focus:ring-2 focus:ring-indigo-100;
+        }
     </style>
 </head>
 
@@ -77,21 +81,21 @@
     <div id="app" v-cloak>
         <div class="min-h-screen flex flex-col max-w-xl mx-auto w-full pb-12">
 
-            <!-- Fatal Error Boundary -->
+            <!-- Global Error Banner -->
             <div v-if="fatalError" class="p-8 text-center space-y-4">
                 <div class="inline-flex p-4 bg-rose-100 text-rose-600 rounded-full"><i data-lucide="alert-circle"
                         class="w-12 h-12"></i></div>
-                <h1 class="text-2xl font-black">Errore di Sistema</h1>
+                <h1 class="text-2xl font-black text-slate-800">DiaTrack Error</h1>
                 <p class="text-slate-500 font-medium">{{ fatalError }}</p>
                 <button @click="location.reload()"
-                    class="w-full bg-slate-900 text-white p-4 rounded-2xl font-bold">Riavvia App</button>
+                    class="w-full bg-slate-900 text-white p-4 rounded-2xl font-bold uppercase tracking-widest">Riavvia</button>
             </div>
 
             <template v-else>
                 <!-- Online/Offline Status -->
                 <div
                     :class="['py-2 text-center text-[10px] font-black tracking-widest uppercase text-white transition-colors duration-500', isOnline ? 'bg-indigo-600' : 'bg-rose-500']">
-                    {{ isOnline ? '● Sistema Online' : '○ Modalità Locale' }}
+                    {{ isOnline ? '● DiaTrack Cloud Active' : '○ DiaTrack Offline Mode' }}
                 </div>
 
                 <div class="flex-1 p-4 md:p-8 space-y-8">
@@ -99,70 +103,78 @@
                     <!-- VIEWS -->
                     <!-- DASHBOARD -->
                     <div v-if="currentView === 'dashboard'" class="space-y-10 pt-4">
-                        <header>
-                            <h1 class="text-3xl font-black tracking-tight text-slate-900">Pannello</h1>
-                            <p class="text-slate-400 font-bold text-xs uppercase">Gestione Magazzino</p>
+                        <header class="flex justify-between items-start">
+                            <div>
+                                <h1 class="text-4xl font-black tracking-tighter text-slate-900">DiaTrack</h1>
+                                <p class="text-slate-400 font-bold text-xs uppercase tracking-[0.2em]">Magazzino Smart
+                                </p>
+                            </div>
+                            <div class="bg-indigo-50 px-3 py-1 rounded-full"><span
+                                    class="text-[10px] font-black text-indigo-600 uppercase">Enterprise</span></div>
                         </header>
 
-                        <!-- Main 4-Button Grid -->
+                        <!-- Control Center -->
                         <div class="grid grid-cols-2 gap-4">
                             <button @click="startSession('carico')"
-                                class="bg-emerald-50 border-emerald-100 text-emerald-700 hover:border-emerald-500 flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 transition-all active:scale-95 text-center gap-3">
+                                class="bg-emerald-50 border-emerald-100 text-emerald-700 hover:border-emerald-500 flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 transition-all active:scale-95 text-center gap-3">
                                 <div
                                     class="w-14 h-14 bg-emerald-500 text-white rounded-3xl flex items-center justify-center shadow-lg">
-                                    <i data-lucide="plus-square" class="w-7 h-7"></i>
-                                </div>
-                                <span class="font-black text-sm uppercase tracking-wider">Carico</span>
+                                    <i data-lucide="package-plus" class="w-7 h-7"></i></div>
+                                <span class="font-black text-sm uppercase">Carico</span>
                             </button>
 
                             <button @click="startSession('scarico')"
-                                class="bg-rose-50 border-rose-100 text-rose-700 hover:border-rose-500 flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 transition-all active:scale-95 text-center gap-3">
+                                class="bg-rose-50 border-rose-100 text-rose-700 hover:border-rose-500 flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 transition-all active:scale-95 text-center gap-3">
                                 <div
                                     class="w-14 h-14 bg-rose-500 text-white rounded-3xl flex items-center justify-center shadow-lg">
-                                    <i data-lucide="minus-square" class="w-7 h-7"></i>
-                                </div>
-                                <span class="font-black text-sm uppercase tracking-wider">Scarico</span>
+                                    <i data-lucide="package-minus" class="w-7 h-7"></i></div>
+                                <span class="font-black text-sm uppercase">Scarico</span>
                             </button>
 
                             <button @click="currentView = 'inventory'"
-                                class="bg-indigo-50 border-indigo-100 text-indigo-700 hover:border-indigo-500 flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 transition-all active:scale-95 text-center gap-3">
+                                class="bg-indigo-50 border-indigo-100 text-indigo-700 hover:border-indigo-500 flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 transition-all active:scale-95 text-center gap-3">
                                 <div
                                     class="w-14 h-14 bg-indigo-500 text-white rounded-3xl flex items-center justify-center shadow-lg">
-                                    <i data-lucide="package" class="w-7 h-7"></i>
-                                </div>
-                                <span class="font-black text-sm uppercase tracking-wider">Giacenza</span>
+                                    <i data-lucide="boxes" class="w-7 h-7"></i></div>
+                                <span class="font-black text-sm uppercase">Giacenza</span>
                             </button>
 
                             <button @click="currentView = 'reports_menu'"
-                                class="bg-amber-50 border-amber-100 text-amber-700 hover:border-amber-500 flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 transition-all active:scale-95 text-center gap-3">
+                                class="bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-500 flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 transition-all active:scale-95 text-center gap-3">
                                 <div
-                                    class="w-14 h-14 bg-amber-500 text-white rounded-3xl flex items-center justify-center shadow-lg">
-                                    <i data-lucide="file-text" class="w-7 h-7"></i>
-                                </div>
-                                <span class="font-black text-sm uppercase tracking-wider">Report</span>
+                                    class="w-14 h-14 bg-slate-800 text-white rounded-3xl flex items-center justify-center shadow-lg">
+                                    <i data-lucide="scroll-text" class="w-7 h-7"></i></div>
+                                <span class="font-black text-sm uppercase">Report PDF</span>
                             </button>
                         </div>
 
-                        <!-- Recent History List (Mini) -->
+                        <!-- Recent History -->
                         <div class="space-y-4">
-                            <h2 class="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-2">Ultime
-                                Sessioni</h2>
+                            <div class="flex items-center justify-between px-2">
+                                <h2 class="text-[10px] font-black text-slate-300 uppercase tracking-widest">Attività
+                                    Recenti</h2>
+                                <span v-if="sessions.length" class="text-[9px] font-bold text-slate-400">{{
+                                    sessions.length }} Sessioni totali</span>
+                            </div>
                             <div class="space-y-3">
-                                <div v-for="s in sortedSessions.slice(0, 3)" :key="s.id" @click="openSession(s.id)"
-                                    class="card-base p-4 flex items-center gap-4">
+                                <div v-for="s in sortedSessions.slice(0, 4)" :key="s.id" @click="openSession(s.id)"
+                                    class="card-base py-4 px-5 flex items-center gap-4">
                                     <div
                                         :class="['w-10 h-10 rounded-xl flex items-center justify-center', s.type === 'carico' ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600']">
-                                        <i :data-lucide="s.type === 'carico' ? 'download' : 'upload'"
+                                        <i :data-lucide="s.type === 'carico' ? 'arrow-down-to-dot' : 'arrow-up-from-dot'"
                                             class="w-4 h-4"></i>
                                     </div>
-                                    <div class="flex-1">
+                                    <div class="flex-1 min-w-0">
                                         <h4 class="font-bold text-slate-800 text-sm capitalize truncate">{{ s.name }}
                                         </h4>
-                                        <p class="text-[9px] font-black text-slate-400">{{ formatDateShort(s.createdAt)
-                                            }}</p>
+                                        <p class="text-[9px] font-black text-slate-400 uppercase">{{
+                                            formatDateShort(s.createdAt) }}</p>
                                     </div>
                                     <i data-lucide="chevron-right" class="w-4 h-4 text-slate-300"></i>
                                 </div>
+                                <div v-if="!sessions.length"
+                                    class="text-center py-12 border-2 border-dashed border-slate-100 rounded-[2rem] text-slate-200 font-bold italic">
+                                    Nessun dato registrato</div>
                             </div>
                         </div>
                     </div>
@@ -172,91 +184,135 @@
                         <nav class="flex items-center justify-between">
                             <button @click="closeScannerAndBack"
                                 class="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><i
-                                    data-lucide="arrow-left" class="w-5 h-5 text-slate-500"></i></button>
+                                    data-lucide="chevron-left" class="w-5 h-5 text-slate-500"></i></button>
                             <div
-                                :class="['px-6 py-2 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-sm', activeSession.type === 'carico' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white']">
+                                :class="['px-6 py-2 rounded-2xl font-black text-[10px] uppercase tracking-[.2em] shadow-sm', activeSession.type === 'carico' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white']">
                                 {{ activeSession.type }}
                             </div>
                         </nav>
 
-                        <div class="glass-dark p-8 text-white relative overflow-hidden">
+                        <div class="glass-dark p-8 text-white relative shadow-2xl shadow-slate-200">
                             <div class="relative z-10">
-                                <p class="text-white/40 text-[10px] font-black uppercase mb-1">{{
+                                <p class="text-white/40 text-[10px] font-black uppercase mb-1 tracking-widest">{{
                                     formatDate(activeSession.createdAt) }}</p>
                                 <h1 class="text-2xl font-black">{{ activeSession.name }}</h1>
-                            </div>
-                            <div class="absolute -right-4 -bottom-4 opacity-10">
-                                <i :data-lucide="activeSession.type === 'carico' ? 'download' : 'upload'"
-                                    class="w-32 h-32"></i>
+                                <div v-if="activeSession.status === 'closed'"
+                                    class="mt-4 inline-flex items-center gap-2 text-rose-300 font-bold text-[10px] uppercase bg-white/10 px-3 py-1 rounded-full">
+                                    <i data-lucide="shield-check" class="w-3 h-3"></i> Sessione Finalizzata
+                                </div>
                             </div>
                         </div>
 
-                        <!-- Scan/Add Section -->
+                        <!-- Scan/Add Area -->
                         <template v-if="activeSession.status === 'open'">
                             <div v-show="showScanner" class="card-base p-2 bg-slate-900 border-none shadow-2xl">
                                 <div id="reader"></div>
                                 <button @click="stopScanner"
-                                    class="w-full py-4 text-white/50 text-[10px] font-black uppercase tracking-widest">Chiudi
-                                    Fotocamera</button>
+                                    class="w-full py-4 text-white/50 text-[10px] font-black uppercase tracking-widest">Esci
+                                    dallo Scanner</button>
                             </div>
 
-                            <div class="flex gap-3">
-                                <button @click="toggleScanner"
-                                    class="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center shrink-0 active:scale-90 transition-all">
-                                    <i data-lucide="scan" class="w-6 h-6"></i>
-                                </button>
-                                <input v-model="newItemBarcode" @keyup.enter="handleBarcodeEntry" type="text"
-                                    placeholder="Scansiona o digita..."
-                                    class="flex-1 px-5 py-4 rounded-2xl border-2 border-slate-100 focus:border-indigo-500 outline-none font-bold text-lg">
-                            </div>
+                            <div class="space-y-4">
+                                <div class="flex gap-3">
+                                    <button @click="toggleScanner"
+                                        class="w-16 h-16 bg-slate-900 text-white rounded-2xl flex items-center justify-center shrink-0 active:scale-90 transition-all shadow-xl">
+                                        <i data-lucide="focus" class="w-6 h-6"></i>
+                                    </button>
+                                    <input v-model="newItemBarcode" @keyup.enter="handleBarcodeEntry" type="text"
+                                        placeholder="Scansiona o digita codice..."
+                                        class="flex-1 px-5 py-4 rounded-2xl border-2 border-slate-100 focus:border-indigo-500 outline-none font-bold text-lg transition-all">
+                                </div>
 
-                            <div v-if="newItemData" class="flex gap-3 animate-in fade-in slide-in-from-top-2">
-                                <input v-model.number="newItemQty" ref="qtyInput" type="number" placeholder="Qtà"
-                                    class="w-32 px-5 py-4 rounded-2xl border-2 border-slate-100 focus:border-indigo-500 outline-none font-black text-center text-xl">
-                                <button @click="addItem"
-                                    :class="['flex-1 font-black uppercase tracking-widest rounded-2xl text-white shadow-lg shadow-black/5', activeSession.type === 'carico' ? 'bg-emerald-500' : 'bg-rose-500']">
-                                    Registra
-                                </button>
+                                <!-- Detail Entry if Barcode Registered -->
+                                <div v-if="newItemData" class="space-y-4 animate-in fade-in slide-in-from-top-4">
+                                    <div class="flex gap-3">
+                                        <div
+                                            class="flex-1 flex flex-col justify-center px-5 py-4 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                                            <span
+                                                class="text-[9px] font-black text-indigo-400 uppercase">Prodotto</span>
+                                            <span class="font-bold text-indigo-900 truncate">{{ newItemData.name
+                                                }}</span>
+                                        </div>
+                                        <div
+                                            class="w-32 flex flex-col justify-center px-4 py-2 bg-indigo-50/50 rounded-2xl border border-indigo-100 text-center">
+                                            <span class="text-[9px] font-black text-indigo-400 uppercase">Stock
+                                                Disponibile</span>
+                                            <span
+                                                :class="['font-black font-mono text-lg', getNetStock(newItemBarcode) > 0 ? 'text-indigo-900' : 'text-rose-600']">
+                                                {{ getNetStock(newItemBarcode) }}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex gap-3">
+                                        <div class="w-32 flex flex-col gap-1">
+                                            <span
+                                                class="text-[10px] font-black text-slate-400 uppercase px-1">Quantità</span>
+                                            <input v-model.number="newItemQty" ref="qtyInput" type="number"
+                                                class="w-full py-4 bg-white rounded-2xl border-2 border-slate-100 text-center font-black text-2xl focus:border-indigo-500 outline-none">
+                                        </div>
+                                        <div class="flex-1 flex flex-col gap-1">
+                                            <span class="text-[10px] font-black text-slate-400 uppercase px-1">Note
+                                                (Opzionale)</span>
+                                            <input v-model="newItemNotes" type="text"
+                                                placeholder="Es. Conf. rovinata..."
+                                                class="w-full py-4 bg-white rounded-2xl border-2 border-slate-100 px-5 font-bold focus:border-indigo-500 outline-none">
+                                        </div>
+                                    </div>
+
+                                    <button @click="addItem"
+                                        :class="['w-full py-5 rounded-[1.5rem] font-black uppercase tracking-[.2em] text-white shadow-xl flex items-center justify-center gap-3 transition-all active:scale-95', activeSession.type === 'carico' ? 'bg-emerald-500 shadow-emerald-100' : 'bg-rose-500 shadow-rose-100']">
+                                        <i data-lucide="check-circle-2"></i> Conferma {{ activeSession.type === 'carico'
+                                        ? 'Carico' : 'Scarico' }}
+                                    </button>
+                                </div>
                             </div>
                         </template>
 
-                        <!-- Items Movment Summary -->
+                        <!-- Items List -->
                         <div class="space-y-4 pt-4">
-                            <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                                <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dettaglio
-                                    Articoli</h3>
+                            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                                <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">
+                                    Movimenti Registrati</h3>
                                 <button v-if="activeSession.status === 'open' && activeSession.items.length"
                                     @click="closeActiveSession"
-                                    class="bg-indigo-600 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase">Finalizza
-                                    Invio</button>
+                                    class="bg-slate-900 text-white px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl">Finalizza</button>
                                 <button v-if="activeSession.status === 'closed'"
                                     @click="generateSessionPDF(activeSession)"
-                                    class="text-rose-500 font-black text-[10px] uppercase">Scarica Report PDF</button>
+                                    class="text-rose-500 font-extrabold text-[10px] uppercase bg-rose-50 px-3 py-1 rounded-lg">Esporta
+                                    PDF</button>
                             </div>
 
                             <div class="space-y-2">
                                 <div v-for="(item, idx) in sortedItems" :key="idx"
-                                    class="card-base py-3 px-4 flex items-center justify-between border-slate-100 shadow-none">
+                                    class="card-base py-4 px-5 flex items-center justify-between shadow-none border-slate-100">
                                     <div class="flex-1 min-w-0 pr-4">
-                                        <h4 class="font-bold text-slate-800 truncate">{{ item.productName }}</h4>
+                                        <div class="flex items-center gap-2">
+                                            <h4 class="font-bold text-slate-800 truncate">{{ item.productName }}</h4>
+                                            <span v-if="item.notes"
+                                                class="px-2 py-0.5 bg-amber-50 text-amber-600 text-[8px] font-black uppercase rounded">Note</span>
+                                        </div>
                                         <p class="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{{
                                             item.barcode }} • {{ item.unitsPerBox }} PZ/CONF</p>
+                                        <p v-if="item.notes"
+                                            class="text-[10px] text-slate-500 italic mt-1 font-medium bg-slate-50 p-2 rounded-lg">
+                                            "{{ item.notes }}"</p>
                                     </div>
                                     <div class="flex items-center gap-4">
                                         <div class="text-right">
                                             <p
-                                                :class="['text-lg font-black font-mono leading-none', activeSession.type === 'carico' ? 'text-emerald-500' : 'text-rose-500']">
+                                                :class="['text-xl font-black font-mono leading-none', activeSession.type === 'carico' ? 'text-emerald-500' : 'text-rose-500']">
                                                 {{ item.quantity }}</p>
                                             <p class="text-[8px] font-bold text-slate-300 uppercase">Colli</p>
                                         </div>
                                         <button v-if="activeSession.status === 'open'" @click="removeItem(idx)"
-                                            class="w-8 h-8 rounded-lg bg-rose-50 text-rose-300 flex items-center justify-center"><i
-                                                data-lucide="trash-2" class="w-4 h-4"></i></button>
+                                            class="w-8 h-8 rounded-xl bg-slate-50 text-slate-300 flex items-center justify-center hover:text-rose-400 transition-colors"><i
+                                                data-lucide="x" class="w-4 h-4"></i></button>
                                     </div>
                                 </div>
                                 <div v-if="!activeSession.items.length"
-                                    class="text-center py-12 text-slate-200 italic font-bold">Nessun movimento
-                                    registrato</div>
+                                    class="text-center py-12 text-slate-200 italic font-bold">Nessun articolo aggiunto
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -266,42 +322,43 @@
                         <header class="flex items-center justify-between">
                             <button @click="currentView = 'dashboard'"
                                 class="p-3 bg-white rounded-2xl shadow-sm border border-slate-100"><i
-                                    data-lucide="arrow-left" class="w-5 h-5 text-slate-500"></i></button>
+                                    data-lucide="chevron-left" class="w-5 h-5 text-slate-500"></i></button>
                             <button @click="generateInventoryPDF"
-                                class="bg-slate-900 text-white px-5 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase">
-                                <i data-lucide="file-text" class="w-4 h-4"></i> Genera Report Completo
+                                class="bg-indigo-600 text-white px-5 py-3 rounded-2xl flex items-center gap-2 text-[10px] font-black uppercase shadow-lg shadow-indigo-100">
+                                <i data-lucide="cloud-download" class="w-4 h-4"></i> Report Totale
                             </button>
                         </header>
 
                         <div>
-                            <h1 class="text-3xl font-black text-slate-900">Magazzino</h1>
-                            <p class="text-slate-400 font-bold text-xs uppercase">Situazione Stock Attuale</p>
+                            <h1 class="text-4xl font-black text-slate-900 tracking-tighter">Stock</h1>
+                            <p class="text-slate-400 font-bold text-[10px] uppercase tracking-widest pl-1">DiaTrack
+                                RealTime Assets</p>
                         </div>
 
                         <div class="relative">
-                            <input v-model="searchQuery" type="text" placeholder="Filtra prodotti..."
-                                class="w-full pl-14 pr-5 py-5 rounded-3xl bg-white border border-slate-100 font-bold outline-none focus:ring-2 focus:ring-indigo-100 shadow-sm text-lg">
+                            <input v-model="searchQuery" type="text" placeholder="Cerca prodotto..."
+                                class="w-full pl-14 pr-5 py-5 rounded-[2rem] bg-white border border-slate-100 font-bold outline-none focus:ring-4 focus:ring-indigo-50 shadow-sm text-lg transition-all">
                             <i data-lucide="search" class="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300"></i>
                         </div>
 
                         <div class="space-y-3">
                             <div v-for="i in filteredInventory" :key="i.barcode" @click="generateProductPDF(i.barcode)"
-                                class="card-base flex items-center justify-between hover:border-indigo-400 cursor-pointer">
+                                class="card-base flex items-center justify-between hover:border-indigo-400 cursor-pointer shadow-sm hover:shadow-indigo-50">
                                 <div class="flex-1 pr-4">
                                     <h4 class="font-bold text-slate-800 text-lg leading-tight">{{ i.name }}</h4>
-                                    <p class="text-[10px] font-black text-slate-400 uppercase mt-1">{{ i.barcode }} •
-                                        Confezione da {{ i.unitsPerBox }} PZ</p>
+                                    <p class="text-[10px] font-black text-slate-400 uppercase mt-1 tracking-wider">{{
+                                        i.barcode }} • {{ i.unitsPerBox }} PZ/CONF</p>
                                 </div>
                                 <div class="text-right">
                                     <p
                                         :class="['text-2xl font-black font-mono', i.quantity >= 0 ? 'text-indigo-600' : 'text-rose-600']">
                                         {{ i.quantity }}</p>
-                                    <p class="text-[8px] font-bold text-slate-300 uppercase">Totale Pezzi</p>
+                                    <p class="text-[8px] font-bold text-slate-300 uppercase">Pezzi Disponibili</p>
                                 </div>
                             </div>
                             <div v-if="!filteredInventory.length"
-                                class="text-center py-20 text-slate-200 italic font-black text-2xl uppercase tracking-[0.2em]">
-                                Magazzino Vuoto</div>
+                                class="text-center py-20 text-slate-200 italic font-black text-2xl uppercase tracking-[.3em]">
+                                Nessuna Giacenza</div>
                         </div>
                     </div>
 
@@ -310,77 +367,91 @@
                         <header>
                             <button @click="currentView = 'dashboard'"
                                 class="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 mb-6"><i
-                                    data-lucide="arrow-left" class="w-5 h-5 text-slate-500"></i></button>
-                            <h1 class="text-3xl font-black text-slate-900">Reportistica</h1>
-                            <p class="text-slate-400 font-bold text-xs uppercase">Generazione Documenti PDF</p>
+                                    data-lucide="chevron-left" class="w-5 h-5 text-slate-500"></i></button>
+                            <h1 class="text-4xl font-black text-slate-900 tracking-tighter">Archivio</h1>
+                            <p class="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Documenti DiaTrack
+                            </p>
                         </header>
 
-                        <!-- Daily Reports Category -->
+                        <!-- Daily Grouped Reports -->
                         <div class="space-y-4">
-                            <h3 class="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-2">Report per
-                                Giorno</h3>
-                            <div class="space-y-3 bg-white rounded-3xl p-6 border border-slate-100">
+                            <h3 class="text-[10px] font-black text-slate-300 uppercase tracking-[.2em] pl-2">Report
+                                Giornalieri</h3>
+                            <div class="space-y-3 bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
                                 <div v-for="date in availableDates" :key="date"
-                                    class="flex items-center justify-between pb-4 border-b border-slate-50 last:border-0 last:pb-0 pt-4 first:pt-0">
-                                    <span class="font-black text-slate-700">{{ date }}</span>
+                                    class="flex flex-col gap-3 pb-6 border-b border-slate-50 last:border-0 last:pb-0 pt-6 first:pt-0">
+                                    <span class="font-black text-slate-400 text-[10px] uppercase tracking-widest">{{
+                                        date }}</span>
                                     <div class="flex gap-2">
                                         <button @click="generateDailyReport(date, 'carico')"
-                                            class="bg-emerald-100 text-emerald-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-90">Carichi</button>
+                                            class="flex-1 bg-emerald-50 text-emerald-600 h-14 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2"><i
+                                                data-lucide="download" class="w-4 h-4"></i> Carichi</button>
                                         <button @click="generateDailyReport(date, 'scarico')"
-                                            class="bg-rose-100 text-rose-700 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-90">Scarichi</button>
+                                            class="flex-1 bg-rose-50 text-rose-600 h-14 rounded-2xl text-[10px] font-black uppercase tracking-widest active:scale-95 flex items-center justify-center gap-2"><i
+                                                data-lucide="upload" class="w-4 h-4"></i> Scarichi</button>
                                     </div>
                                 </div>
-                                <div v-if="!availableDates.length" class="text-center py-4 text-slate-300 italic">Nessun
-                                    dato disponibile</div>
+                                <div v-if="!availableDates.length"
+                                    class="text-center py-4 text-slate-300 italic font-medium">Nessuna attività
+                                    registrata</div>
                             </div>
                         </div>
 
-                        <!-- Product Specific Category -->
-                        <div class="space-y-4 pt-6">
-                            <h3 class="text-[10px] font-black text-slate-300 uppercase tracking-widest pl-2">Scheda
-                                Articolo</h3>
+                        <!-- Product Snapshots -->
+                        <div class="space-y-4 pt-4">
+                            <h3 class="text-[10px] font-black text-slate-300 uppercase tracking-[.2em] pl-2">Cronologia
+                                Prodotti</h3>
                             <div class="grid grid-cols-1 gap-2">
                                 <div v-for="p in registeredProducts" :key="p.barcode"
                                     @click="generateProductPDF(p.barcode)"
-                                    class="card-base flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50">
-                                    <span class="font-bold text-slate-800 text-sm">{{ p.name }}</span>
-                                    <span class="text-[9px] font-black text-slate-400 uppercase">{{ p.barcode }}</span>
+                                    class="card-base flex items-center justify-between p-4 cursor-pointer hover:bg-slate-50 border-slate-100 shadow-none">
+                                    <span class="font-bold text-slate-800 text-sm truncate max-w-[200px]">{{ p.name
+                                        }}</span>
+                                    <span
+                                        class="text-[9px] font-black text-indigo-400 uppercase flex items-center gap-1">Scarica
+                                        <i data-lucide="file-down" class="w-3 h-3"></i></span>
                                 </div>
-                                <div v-if="!registeredProducts.length" class="text-center py-8 text-slate-300 italic">
-                                    Nessun prodotto registrato</div>
+                                <div v-if="!registeredProducts.length"
+                                    class="text-center py-8 text-slate-200 italic font-bold">L'anagrafica è vuota</div>
                             </div>
                         </div>
                     </div>
 
                 </div>
 
-                <!-- NEW PRODUCT MODAL -->
+                <!-- REGISTRY MODAL -->
                 <div v-if="showRegistryModal" class="fixed inset-0 z-[100] flex items-center justify-center p-6">
-                    <div class="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" @click="cancelRegistry"></div>
-                    <div class="bg-white rounded-[2.5rem] w-full max-w-sm relative z-10 p-10 shadow-2xl">
-                        <div class="text-center space-y-4">
-                            <i data-lucide="package-plus" class="w-16 h-16 text-indigo-500 mx-auto"></i>
-                            <h3 class="text-xl font-black">Nuovo Prodotto</h3>
-                            <p class="text-slate-400 font-bold text-[10px] uppercase">Barcode: {{ newItemBarcode }}</p>
+                    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-md" @click="cancelRegistry"></div>
+                    <div
+                        class="bg-white rounded-[2.5rem] w-full max-w-sm relative z-10 p-10 shadow-2xl animate-in zoom-in-95">
+                        <div class="text-center space-y-4 mb-8">
+                            <i data-lucide="package-search" class="w-16 h-16 text-indigo-600 mx-auto"></i>
+                            <h3 class="text-2xl font-black text-slate-900">Nuovo Articolo</h3>
+                            <p class="text-slate-400 font-bold text-[10px] uppercase tracking-widest leading-loose">
+                                Configurazione Barcode:<br><span
+                                    class="text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">{{ newItemBarcode
+                                    }}</span></p>
                         </div>
-                        <div class="space-y-5 mt-8">
+                        <div class="space-y-5">
                             <div>
-                                <label class="text-[10px] font-black text-slate-300 uppercase block mb-1">Nome
-                                    Articolo</label>
-                                <input v-model="regName" id="regNameInput" type="text"
-                                    class="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold focus:ring-2 focus:ring-indigo-500">
+                                <label
+                                    class="text-[10px] font-black text-slate-300 uppercase block mb-1 ml-1">Descrizione
+                                    / Nome</label>
+                                <input v-model="regName" id="regNameInput" type="text" placeholder="Nome prodotto..."
+                                    class="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-bold focus:ring-4 focus:ring-indigo-100 transition-all border-none">
                             </div>
                             <div>
-                                <label class="text-[10px] font-black text-slate-300 uppercase block mb-1">Pezzi per
-                                    Confezione</label>
+                                <label class="text-[10px] font-black text-slate-300 uppercase block mb-1 ml-1">Pezzi per
+                                    Confezione (Conf.)</label>
                                 <input v-model.number="regUnits" type="number"
-                                    class="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-black focus:ring-2 focus:ring-indigo-500 text-xl">
+                                    class="w-full px-5 py-4 bg-slate-50 rounded-2xl outline-none font-black focus:ring-4 focus:ring-indigo-100 text-2xl transition-all border-none">
                             </div>
-                            <div class="flex gap-4 pt-4">
-                                <button @click="cancelRegistry"
-                                    class="flex-1 font-black text-slate-300 uppercase text-xs">Annulla</button>
+                            <div class="flex flex-col gap-3 pt-4">
                                 <button @click="saveRegistry"
-                                    class="flex-[2] bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest">Salva</button>
+                                    class="w-full bg-indigo-600 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest text-xs shadow-xl shadow-indigo-100 active:scale-95 transition-all">Salva
+                                    Anagrafica</button>
+                                <button @click="cancelRegistry"
+                                    class="w-full py-2 font-black text-slate-300 uppercase text-[10px] tracking-widest">Annulla</button>
                             </div>
                         </div>
                     </div>
@@ -393,7 +464,7 @@
         // GLOBAL ERROR HANDLER
         window.onerror = (m, u, l) => {
             console.error(m, l);
-            if (window.appRef) window.appRef.fatalError = `Errore alla riga ${l}: ${m}`;
+            if (window.appRef) window.appRef.fatalError = `System Fault: Row ${l} - ${m}`;
         };
 
         const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
@@ -407,28 +478,49 @@
                 const productRegistry = ref({});
                 const activeSessionId = ref(null);
 
+                // Form States
                 const newItemBarcode = ref('');
                 const newItemQty = ref(null);
+                const newItemNotes = ref('');
                 const searchQuery = ref('');
                 const qtyInput = ref(null);
 
+                // Registry States
                 const showRegistryModal = ref(false);
                 const regName = ref('');
                 const regUnits = ref(1);
 
+                // Scanner States
                 const showScanner = ref(false);
                 let scannerInstance = null;
 
-                // --- DATA PERSISTENCE ---
+                // --- CORE UTILS ---
+                const getUUID = () => {
+                    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+                    return 'S-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6);
+                };
+
+                const getNetStock = (barcode) => {
+                    let totalPZ = 0;
+                    sessions.value.filter(s => s.status === 'closed').forEach(s => {
+                        s.items.filter(i => i.barcode === barcode).forEach(i => {
+                            const pz = i.quantity * i.unitsPerBox;
+                            totalPZ += (s.type === 'carico' ? pz : -pz);
+                        });
+                    });
+                    return totalPZ;
+                };
+
+                // --- PERSISTENCE ---
                 const saveState = () => {
-                    localStorage.setItem('cm_enterprise_v3_sessions', JSON.stringify(sessions.value));
-                    localStorage.setItem('cm_enterprise_v3_registry', JSON.stringify(productRegistry.value));
+                    localStorage.setItem('diatrack_v1_sessions', JSON.stringify(sessions.value));
+                    localStorage.setItem('diatrack_v1_registry', JSON.stringify(productRegistry.value));
                 };
 
                 onMounted(() => {
                     window.appRef = this;
-                    const s = localStorage.getItem('cm_enterprise_v3_sessions');
-                    const r = localStorage.getItem('cm_enterprise_v3_registry');
+                    const s = localStorage.getItem('diatrack_v1_sessions');
+                    const r = localStorage.getItem('diatrack_v1_registry');
                     if (s) sessions.value = JSON.parse(s);
                     if (r) productRegistry.value = JSON.parse(r);
 
@@ -444,7 +536,6 @@
                 const activeSession = computed(() => sessions.value.find(s => s.id === activeSessionId.value) || { items: [] });
                 const sortedItems = computed(() => [...(activeSession.value.items || [])].reverse());
                 const newItemData = computed(() => productRegistry.value[newItemBarcode.value]);
-
                 const sortedSessions = computed(() => [...sessions.value].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
 
                 const inventory = computed(() => {
@@ -452,7 +543,7 @@
                     sessions.value.filter(s => s.status === 'closed').forEach(sess => {
                         (sess.items || []).forEach(item => {
                             const b = item.barcode;
-                            const prod = productRegistry.value[b] || { name: 'Sconosciuto', unitsPerBox: 1 };
+                            const prod = productRegistry.value[b] || { name: 'Unknown', unitsPerBox: 1 };
                             const curr = map.get(b) || { barcode: b, name: prod.name, unitsPerBox: prod.unitsPerBox, quantity: 0 };
                             const impact = item.quantity * prod.unitsPerBox;
                             curr.quantity += (sess.type === 'carico' ? impact : -impact);
@@ -469,9 +560,9 @@
                 });
 
                 const availableDates = computed(() => {
-                    const dates = new Set();
-                    sessions.value.forEach(s => dates.add(new Date(s.createdAt).toLocaleDateString()));
-                    return Array.from(dates).sort((a, b) => new Date(b) - new Date(a));
+                    const dSet = new Set();
+                    sessions.value.forEach(s => dSet.add(new Date(s.createdAt).toLocaleDateString()));
+                    return Array.from(dSet).sort((a, b) => new Date(b) - new Date(a));
                 });
 
                 const registeredProducts = computed(() => {
@@ -479,38 +570,31 @@
                         .sort((a, b) => a.name.localeCompare(b.name));
                 });
 
-                // --- NAVIGATION & SESSIONS ---
+                // --- LOGIC ---
                 const startSession = (type) => {
                     const label = type === 'carico' ? 'Entrata Merce' : 'Uscita Merce';
-                    const name = prompt(`Identificativo sessione (${label}):`, `${label} - ${new Date().toLocaleDateString()}`);
+                    const name = prompt(`Identificativo Sessione ${type.toUpperCase()}:`, `${label} - ${new Date().toLocaleDateString()}`);
                     if (!name) return;
-                    const id = 'S-' + Date.now() + Math.random().toString(36).slice(2, 5);
-                    sessions.value.push({
-                        id, type, name, status: 'open', items: [],
-                        createdAt: new Date().toISOString()
-                    });
+                    const id = getUUID();
+                    sessions.value.push({ id, type, name, status: 'open', items: [], createdAt: new Date().toISOString() });
                     activeSessionId.value = id;
                     currentView.value = 'session';
                 };
 
                 const openSession = (id) => { activeSessionId.value = id; currentView.value = 'session'; };
-
                 const closeScannerAndBack = () => { stopScanner(); currentView.value = 'dashboard'; };
 
-                // --- PRODUCT HANDLING ---
                 const handleBarcodeEntry = () => {
                     if (!newItemBarcode.value) return;
-                    if (newItemData.value) { nextTick(() => qtyInput.value?.focus()); }
+                    if (newItemData.value) { newItemNotes.value = ''; nextTick(() => qtyInput.value?.focus()); }
                     else { showRegistryModal.value = true; nextTick(() => document.getElementById('regNameInput')?.focus()); }
                 };
 
                 const saveRegistry = () => {
                     if (!regName.value || !regUnits.value) return;
-                    productRegistry.value[newItemBarcode.value] = {
-                        name: regName.value.trim(),
-                        unitsPerBox: parseInt(regUnits.value) || 1
-                    };
+                    productRegistry.value[newItemBarcode.value] = { name: regName.value.trim(), unitsPerBox: parseInt(regUnits.value) || 1 };
                     showRegistryModal.value = false;
+                    newItemNotes.value = '';
                     nextTick(() => qtyInput.value?.focus());
                 };
 
@@ -518,23 +602,35 @@
 
                 const addItem = () => {
                     if (!newItemBarcode.value || !newItemQty.value) return;
+
+                    // VALIDATION: BLOCK SCARICO IF > INVENTORY
+                    if (activeSession.value.type === 'scarico') {
+                        const availablePZ = getNetStock(newItemBarcode.value);
+                        const requestedPZ = newItemQty.value * newItemData.value.unitsPerBox;
+                        if (requestedPZ > availablePZ) {
+                            alert(`ATTENZIONE: Disponibilità insufficiente!\n\nProdotto: ${newItemData.value.name}\nIn stock: ${availablePZ} PZ\nRichiesti: ${requestedPZ} PZ (basati su ${newItemQty.value} colli)`);
+                            return;
+                        }
+                    }
+
                     activeSession.value.items.push({
                         barcode: newItemBarcode.value,
                         productName: newItemData.value.name,
                         unitsPerBox: newItemData.value.unitsPerBox,
-                        quantity: parseInt(newItemQty.value)
+                        quantity: parseInt(newItemQty.value),
+                        notes: newItemNotes.value.trim()
                     });
-                    newItemBarcode.value = ''; newItemQty.value = null;
+
+                    newItemBarcode.value = ''; newItemQty.value = null; newItemNotes.value = '';
                     nextTick(() => document.querySelector('input[placeholder*="Scansiona"]')?.focus());
                 };
 
-                const removeItem = (i) => {
-                    activeSession.value.items.splice(activeSession.value.items.length - 1 - i, 1);
-                };
+                const removeItem = (i) => activeSession.value.items.splice(activeSession.value.items.length - 1 - i, 1);
 
                 const closeActiveSession = () => {
-                    if (!confirm("Sei sicuro di voler chiudere la sessione?")) return;
+                    if (!confirm("Sei sicuro di voler finalizzare questa sessione?\nI dati verranno aggiunti permanentemente allo stock.")) return;
                     activeSession.value.status = 'closed';
+                    activeSession.value.closedAt = new Date().toISOString();
                     currentView.value = 'dashboard';
                 };
 
@@ -551,53 +647,64 @@
                         });
                     }
                 };
+                const stopScanner = () => { if (scannerInstance) { scannerInstance.stop().finally(() => { showScanner.value = false; scannerInstance = null; }); } else { showScanner.value = false; } };
 
-                const stopScanner = () => {
-                    if (scannerInstance) { scannerInstance.stop().finally(() => { showScanner.value = false; scannerInstance = null; }); }
-                    else { showScanner.value = false; }
-                };
-
-                // --- PDF GENERATION (FIXED & ADVANCED) ---
+                // --- PDF ENGINE ---
                 const generatePDF = (title, headers, rows, filename) => {
                     const { jsPDF } = window.jspdf;
-                    const doc = new jsPDF();
+                    const doc = new jsPDF('p', 'mm', 'a4');
 
-                    // Header Style
-                    doc.setFillColor(30, 41, 59); // Slate 800
-                    doc.rect(0, 0, 210, 40, 'F');
+                    // Header DiaTrack
+                    doc.setFillColor(15, 23, 42); // Navy Dark
+                    doc.rect(0, 0, 210, 45, 'F');
                     doc.setTextColor(255, 255, 255);
-                    doc.setFontSize(22);
+                    doc.setFontSize(26);
                     doc.setFont("helvetica", "bold");
-                    doc.text("REPORT MAGAZZINO", 15, 20);
+                    doc.text("DiaTrack", 15, 25);
                     doc.setFontSize(10);
-                    doc.text(title.toUpperCase(), 15, 30);
+                    doc.setFont("helvetica", "normal");
+                    doc.text("ENTERPRISE WAREHOUSE SOLUTIONS", 15, 33);
+                    doc.setDrawColor(79, 70, 229); // Indigo line
+                    doc.setLineWidth(1);
+                    doc.line(15, 36, 195, 36);
 
-                    // Table
+                    doc.setFontSize(12);
+                    doc.text(title.toUpperCase(), 15, 55);
+                    doc.setTextColor(100, 100, 100);
+                    doc.setFontSize(8);
+                    doc.text(`Doc ID: ${Date.now()} | Generato: ${new Date().toLocaleString('it-IT')}`, 15, 60);
+
+                    // Table with Notes
                     doc.autoTable({
-                        startY: 50,
+                        startY: 65,
                         head: [headers],
                         body: rows,
-                        theme: 'grid',
-                        headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' },
-                        styles: { fontSize: 9, cellPadding: 4 },
+                        theme: 'striped',
+                        headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 10 },
+                        bodyStyles: { fontSize: 9, cellPadding: 5 },
+                        columnStyles: { [headers.length - 1]: { cellWidth: 50, fontStyle: 'italic' } }, // Note column styling
                         margin: { left: 15, right: 15 }
                     });
 
-                    doc.setFontSize(8);
-                    doc.setTextColor(150, 150, 150);
-                    doc.text(`Generato il ${new Date().toLocaleString('it-IT')}`, 15, doc.internal.pageSize.getHeight() - 10);
+                    // Footer
+                    const pageCount = doc.internal.getNumberOfPages();
+                    for (let i = 1; i <= pageCount; i++) {
+                        doc.setPage(i);
+                        doc.setFontSize(8);
+                        doc.text(`Pagina ${i} di ${pageCount}`, 195, 285, { align: 'right' });
+                    }
 
-                    doc.save(filename || `Report_${Date.now()}.pdf`);
+                    doc.save(filename || `DiaTrack_Report.pdf`);
                 };
 
                 const generateInventoryPDF = () => {
-                    const rows = inventory.value.map(i => [i.barcode, i.name, i.unitsPerBox, i.quantity]);
-                    generatePDF("Giacenza Generale Magazzino", ["Barcode", "Descrizione", "Pezzi/Conf", "Totale Pezzi"], rows, "Giacenza_Generale.pdf");
+                    const rows = inventory.value.map(i => [i.barcode, i.name, `${i.unitsPerBox} pz`, i.quantity]);
+                    generatePDF("Giacenza Globale Stock", ["Barcode", "Descrizione Prodotto", "Confezione", "Totale Pezzi"], rows, "Giacenza_DiaTrack.pdf");
                 };
 
-                const generateSessionPDF = (session) => {
-                    const rows = session.items.map(i => [i.barcode, i.productName, i.quantity, i.unitsPerBox, i.quantity * i.unitsPerBox]);
-                    generatePDF(`Sessione: ${session.name}`, ["Barcode", "Articolo", "Colli", "PZ/C", "Tot Pezzi"], rows, `Sessione_${session.id}.pdf`);
+                const generateSessionPDF = (sess) => {
+                    const rows = sess.items.map(i => [i.barcode, i.productName, i.quantity, i.unitsPerBox, i.notes || '-']);
+                    generatePDF(`${sess.type}: ${sess.name}`, ["Barcode", "Articolo", "Colli", "PZ/C", "Note"], rows, `DiaTrack_${sess.type}_${sess.id}.pdf`);
                 };
 
                 const generateDailyReport = (date, type) => {
@@ -609,38 +716,30 @@
                         existing.pz += (i.quantity * i.unitsPerBox);
                         itemsMap.set(i.barcode, existing);
                     }));
-
-                    const rows = Array.from(itemsMap.entries()).map(([code, d]) => [code, d.name, d.qty, d.pz]);
-                    generatePDF(`Report Giornaliero ${type.toUpperCase()} - ${date}`, ["Barcode", "Articolo", "Tot Colli", "Tot Pezzi"], rows, `Report_${type}_${date.replace(/\//g, '-')}.pdf`);
+                    const rows = Array.from(itemsMap.entries()).map(([code, d]) => [code, d.name, d.qty, d.pz, '-']);
+                    generatePDF(`Report Giornaliero ${type.toUpperCase()} - ${date}`, ["Barcode", "Articolo", "Tot Colli", "Tot Pezzi", "Note Cumulate"], rows, `DiaTrack_${type}_${date.replace(/\//g, '-')}.pdf`);
                 };
 
                 const generateProductPDF = (barcode) => {
                     const prod = productRegistry.value[barcode];
-                    const history = [];
+                    const hist = [];
                     sessions.value.filter(s => s.status === 'closed').forEach(s => {
                         s.items.filter(i => i.barcode === barcode).forEach(i => {
-                            history.push([
-                                new Date(s.createdAt).toLocaleDateString(),
-                                s.type.toUpperCase(),
-                                s.name,
-                                s.type === 'carico' ? `+${i.quantity}` : `-${i.quantity}`,
-                                i.quantity * i.unitsPerBox
-                            ]);
+                            hist.push([new Date(s.createdAt).toLocaleDateString(), s.type.toUpperCase(), s.type === 'carico' ? `+${i.quantity}` : `-${i.quantity}`, i.quantity * i.unitsPerBox, i.notes || '-']);
                         });
                     });
-
-                    const currentStock = inventory.value.find(i => i.barcode === barcode)?.quantity || 0;
-                    generatePDF(`Scheda Prodotto: ${prod.name} (Giacenza: ${currentStock} PZ)`, ["Data", "Tipo", "Sessione", "Colli", "Pezzi"], history, `Scheda_${prod.name}.pdf`);
+                    const stock = getNetStock(barcode);
+                    generatePDF(`Scheda Articolo: ${prod.name} (Stock: ${stock} PZ)`, ["Data", "Tipo", "Colli", "Pezzi", "Note"], hist, `DiaTrack_${prod.name}.pdf`);
                 };
 
                 return {
-                    fatalError, currentView, isOnline, newItemBarcode, newItemQty, searchQuery, qtyInput, showScanner,
+                    fatalError, currentView, isOnline, newItemBarcode, newItemQty, newItemNotes, searchQuery, qtyInput, showScanner,
                     showRegistryModal, regName, regUnits, sessions, activeSessionId, activeSession, sortedItems, filteredInventory,
                     newItemData, availableDates, registeredProducts, sortedSessions,
                     startSession, openSession, handleBarcodeEntry, saveRegistry, cancelRegistry, addItem, removeItem, closeActiveSession,
                     formatDate: (d) => d ? new Date(d).toLocaleString('it-IT') : '',
                     formatDateShort: (d) => d ? new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }) : '',
-                    closeScannerAndBack, toggleScanner, stopScanner,
+                    getNetStock, closeScannerAndBack, toggleScanner, stopScanner,
                     generateInventoryPDF, generateSessionPDF, generateDailyReport, generateProductPDF
                 };
             }
