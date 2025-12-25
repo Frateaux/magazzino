@@ -1,661 +1,428 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Scanner Magazzino Cloud</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carico Merci Smart</title>
+    <!-- Tailwind CSS (via CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <!-- Librerie PDF -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    
+    <!-- Vue.js 3 (via CDN) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        body { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
-        .scan-btn { animation: pulse-glow 2s infinite; }
-        @keyframes pulse-glow {
-            0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7); }
-            70% { box-shadow: 0 0 0 15px rgba(79, 70, 229, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
         }
-        .toggle-checkbox:checked { right: 0; border-color: #ef4444; }
-        .toggle-checkbox:checked + .toggle-label { background-color: #ef4444; }
-        
-        /* Indicatore Online/Offline */
-        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; transition: all 0.3s; }
-        .status-online { background-color: #10b981; box-shadow: 0 0 8px #10b981; }
-        .status-offline { background-color: #ef4444; box-shadow: 0 0 0px #ef4444; }
-        .status-text { font-size: 10px; margin-left: 4px; font-weight: normal; opacity: 0.8; }
+
+        .fade-enter-active,
+        .fade-leave-active {
+            transition: opacity 0.2s ease;
+        }
+
+        .fade-enter-from,
+        .fade-leave-to {
+            opacity: 0;
+        }
+
+        .card {
+            @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6;
+        }
+
+        .btn {
+            @apply px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2;
+        }
+
+        .btn-primary {
+            @apply bg-indigo-600 text-white hover:bg-indigo-700;
+        }
+
+        .btn-success {
+            @apply bg-emerald-600 text-white hover:bg-emerald-700;
+        }
+
+        .btn-danger {
+            @apply bg-red-500 text-white hover:bg-red-600;
+        }
+
+        .btn-ghost {
+            @apply text-gray-500 hover:bg-gray-100;
+        }
+
+        .input {
+            @apply px-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full;
+        }
     </style>
 </head>
-<body class="bg-gray-900 text-white pb-32">
 
-    <!-- Header -->
-    <div class="fixed top-0 w-full bg-gray-800 border-b border-gray-700 z-30 p-3 shadow-lg">
-        <div class="flex justify-between items-center mb-2">
-            <h1 class="text-lg font-bold text-indigo-400 flex items-center">
-                <div id="connectionStatus" class="status-dot status-offline"></div>
-                <span id="connectionText" class="status-text text-gray-400">OFFLINE</span>
-                <span class="ml-2">Magazzino</span>
-            </h1>
-            <div class="flex space-x-2">
-                <button id="btnExportJson" class="bg-gray-700 hover:bg-gray-600 text-xs text-white px-2 py-1 rounded border border-gray-600">Backup JSON</button>
-            </div>
+<body>
+    <div id="app" class="min-h-screen flex flex-col">
+        <!-- Status Bar -->
+        <div
+            :class="['py-2 text-center text-sm font-medium text-white transition-colors', isOnline ? 'bg-indigo-600' : 'bg-red-500']">
+            <span v-if="isOnline" class="flex items-center justify-center gap-2">
+                <i data-lucide="wifi"></i> Online - Sincronizzazione Attiva
+            </span>
+            <span v-else class="flex items-center justify-center gap-2">
+                <i data-lucide="wifi-off"></i> Offline - Modifiche Salvate in Locale
+            </span>
         </div>
 
-        <div class="grid grid-cols-2 gap-2">
-            <div>
-                <input type="text" id="operatorName" placeholder="Nome Operatore" class="w-full bg-gray-900 text-white text-sm border border-gray-600 rounded px-2 py-1 focus:border-indigo-500 outline-none">
+        <!-- Main Content -->
+        <main class="flex-1 p-4 md:p-6 max-w-4xl mx-auto w-full">
+
+            <!-- VIEW: DASHBOARD -->
+            <div v-if="currentView === 'dashboard'" class="space-y-6">
+                <!-- Header -->
+                <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
+                    <h1 class="text-2xl font-bold text-gray-800">📦 Carico Merci</h1>
+                    <button @click="currentView = 'inventory'"
+                        class="btn bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
+                        <i data-lucide="package"></i> Giacenza Totale
+                    </button>
+                </div>
+
+                <!-- Create Session -->
+                <div class="card flex gap-3">
+                    <input v-model="newSessionName" @keyup.enter="createSession" type="text"
+                        placeholder="Nome nuova sessione..." class="input">
+                    <button @click="createSession" class="btn btn-primary shrink-0">
+                        <i data-lucide="plus"></i> Nuova
+                    </button>
+                </div>
+
+                <!-- Active Sessions -->
+                <section>
+                    <h2 class="text-lg font-bold text-gray-700 mb-3 ml-1 flex items-center gap-2"><span
+                            class="w-2 h-2 rounded-full bg-emerald-500"></span> Sessioni Attive</h2>
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <div v-for="session in openSessions" :key="session.id" @click="openSession(session.id)"
+                            class="card hover:border-indigo-300 cursor-pointer transition-all group relative">
+                            <div class="flex justify-between items-start">
+                                <h3 class="font-bold text-gray-800 text-lg">{{ session.name }}</h3>
+                                <i data-lucide="chevron-right" class="text-gray-300 group-hover:text-indigo-500"></i>
+                            </div>
+                            <p class="text-gray-500 text-sm mt-1">{{ session.items.length }} articoli registrati</p>
+                            <span v-if="session.unsynced"
+                                class="absolute top-4 right-10 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Non
+                                Sincronizzato</span>
+                        </div>
+                        <div v-if="openSessions.length === 0"
+                            class="p-8 text-center text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
+                            Nessuna sessione attiva
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Closed Sessions -->
+                <section>
+                    <h2 class="text-lg font-bold text-gray-700 mb-3 ml-1 flex items-center gap-2"><i
+                            data-lucide="history" size="18"></i> Storico</h2>
+                    <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+                        <div v-for="session in closedSessions" :key="session.id"
+                            class="p-4 flex justify-between items-center hover:bg-gray-50">
+                            <div>
+                                <h4 class="font-medium text-gray-800">{{ session.name }}</h4>
+                                <span class="text-xs text-gray-500">Chiusa il {{ formatDate(session.closedAt) }} • {{
+                                    session.items.length }} articoli</span>
+                            </div>
+                            <button @click="openSession(session.id)"
+                                class="btn btn-ghost btn-sm text-sm border">Vedi</button>
+                        </div>
+                    </div>
+                </section>
             </div>
-            <div class="flex items-center justify-end relative">
-                <span class="mr-2 text-xs font-bold" id="modeLabel">CARICO</span>
-                <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                    <input type="checkbox" id="modeToggle" class="toggle-checkbox absolute block w-5 h-5 rounded-full bg-white border-4 appearance-none cursor-pointer transition-all duration-300 left-0 top-0"/>
-                    <label for="modeToggle" class="toggle-label block overflow-hidden h-5 rounded-full bg-green-500 cursor-pointer transition-colors duration-300"></label>
+
+            <!-- VIEW: SESSION DETAIL -->
+            <div v-if="currentView === 'session'" class="space-y-4">
+                <div class="flex items-center justify-between">
+                    <button @click="currentView = 'dashboard'" class="btn btn-ghost -ml-2">
+                        <i data-lucide="arrow-left"></i> Indietro
+                    </button>
+                    <span
+                        :class="['px-3 py-1 rounded-full text-sm font-bold', activeSession.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600']">
+                        {{ activeSession.status === 'open' ? '🟢 In Corso' : '🔒 Chiusa' }}
+                    </span>
+                </div>
+
+                <div class="card">
+                    <h1 class="text-2xl font-bold text-gray-800 mb-1">{{ activeSession.name }}</h1>
+                    <p class="text-sm text-gray-500">Creata il {{ formatDate(activeSession.createdAt) }}</p>
+                </div>
+
+                <!-- Input Form (Only if Open) -->
+                <div v-if="activeSession.status === 'open'" class="card space-y-3 bg-indigo-50 border-indigo-100">
+                    <h3 class="font-bold text-indigo-900">Aggiungi Articolo</h3>
+                    <div class="flex flex-col md:flex-row gap-3">
+                        <input v-model="newItemName" ref="itemInput" type="text"
+                            placeholder="Nome Prodotto (es. Scatola A)" class="input flex-[2] bg-white">
+                        <input v-model.number="newItemQty" type="number" placeholder="Qta" class="input flex-1 bg-white"
+                            @keyup.enter="addItem">
+                        <button @click="addItem" class="btn btn-primary h-[50px] w-full md:w-auto px-6">
+                            <i data-lucide="plus"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Item List -->
+                <div class="card p-0 overflow-hidden">
+                    <div class="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                        <span class="font-semibold text-gray-600">{{ activeSession.items.length }} Articoli</span>
+                        <button v-if="activeSession.status === 'open'" @click="closeActiveSession"
+                            class="btn btn-success text-sm py-1 px-3">
+                            <i data-lucide="check-circle" width="16"></i> Termina e Salva
+                        </button>
+                    </div>
+                    <ul class="divide-y divide-gray-100">
+                        <li v-for="(item, idx) in activeSession.items" :key="idx"
+                            class="p-4 flex justify-between items-center hover:bg-gray-50">
+                            <span class="font-medium text-gray-800">{{ item.name }}</span>
+                            <div class="flex items-center gap-3">
+                                <span class="bg-gray-100 text-gray-800 font-mono font-bold px-3 py-1 rounded">{{
+                                    item.quantity }}</span>
+                                <button v-if="activeSession.status === 'open'" @click="removeItem(idx)"
+                                    class="text-red-400 hover:text-red-600">
+                                    <i data-lucide="trash-2" width="18"></i>
+                                </button>
+                            </div>
+                        </li>
+                        <li v-if="activeSession.items.length === 0" class="p-8 text-center text-gray-400">
+                            Nessun articolo inserito.
+                        </li>
+                    </ul>
                 </div>
             </div>
-        </div>
+
+            <!-- VIEW: INVENTORY -->
+            <div v-if="currentView === 'inventory'" class="space-y-6">
+                <div class="flex items-center gap-4">
+                    <button @click="currentView = 'dashboard'"
+                        class="btn btn-ghost rounded-full w-10 h-10 p-0 flex items-center justify-center">
+                        <i data-lucide="arrow-left"></i>
+                    </button>
+                    <h1 class="text-2xl font-bold text-gray-800">Giacenza Totale</h1>
+                </div>
+
+                <div class="relative">
+                    <input v-model="searchQuery" type="text" placeholder="Cerca prodotto..." class="input pl-11">
+                    <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                        width="20"></i>
+                </div>
+
+                <div class="card p-0 overflow-hidden">
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="p-4 font-semibold text-gray-600">Prodotto</th>
+                                <th class="p-4 font-semibold text-gray-600 text-right">Totale</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            <tr v-for="item in filteredInventory" :key="item.name" class="hover:bg-gray-50">
+                                <td class="p-4 font-medium text-gray-800">{{ item.name }}</td>
+                                <td class="p-4 text-right font-bold text-indigo-600">{{ item.quantity }}</td>
+                            </tr>
+                            <tr v-if="filteredInventory.length === 0">
+                                <td colspan="2" class="p-8 text-center text-gray-400">
+                                    {{ searchQuery ? 'Nessun prodotto trovato.' : 'Nessun dato in magazzino.' }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
     </div>
 
-    <!-- Main Content -->
-    <div class="mt-32 px-4">
-        <!-- Stats -->
-        <div class="grid grid-cols-2 gap-4 mb-4">
-            <div class="bg-gray-800 p-3 rounded-xl border border-gray-700 shadow-lg text-center">
-                <div class="text-gray-400 text-[10px] uppercase tracking-wider">Movimenti Oggi</div>
-                <div class="text-3xl font-bold text-white" id="scanCount">0</div>
-            </div>
-            <div class="bg-gray-800 p-3 rounded-xl border border-gray-700 shadow-lg text-center relative overflow-hidden">
-                <div class="text-gray-400 text-[10px] uppercase tracking-wider">Bilancio Pezzi</div>
-                <div class="text-3xl font-bold text-indigo-400" id="piecesCount">0</div>
-                <div id="modeIndicator" class="absolute bottom-0 left-0 w-full h-1 bg-green-500"></div>
-            </div>
-        </div>
-
-        <button id="btnSummary" class="w-full mb-6 bg-gray-700 hover:bg-gray-600 text-gray-200 py-2 rounded-lg text-sm font-semibold flex items-center justify-center border border-gray-600">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-            📋 Riepilogo & PDF
-        </button>
-
-        <!-- Live Feed -->
-        <h3 class="text-gray-500 text-xs font-bold uppercase mb-2 pl-1 flex justify-between">
-            <span>Feed Tempo Reale</span>
-            <span class="text-[10px] text-indigo-400 animate-pulse hidden" id="syncIndicator">Sync...</span>
-        </h3>
-        <div id="logContainer" class="space-y-2 pb-20">
-            <div class="text-center text-gray-600 py-8 text-sm italic">In attesa di dati...</div>
-        </div>
-    </div>
-
-    <!-- Scanner Trigger -->
-    <div class="fixed bottom-6 left-0 w-full flex justify-center z-20 pointer-events-none">
-        <button id="btnStartScan" class="pointer-events-auto scan-btn bg-indigo-600 active:bg-indigo-700 text-white rounded-full w-20 h-20 flex items-center justify-center shadow-2xl border-4 border-gray-900 transform transition active:scale-95">
-            <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
-        </button>
-    </div>
-
-    <!-- Scanner Overlay -->
-    <div id="scannerOverlay" class="hidden fixed inset-0 bg-black z-50 flex flex-col relative">
-        <div class="p-4 flex justify-between items-center bg-black z-20">
-            <span class="text-white font-bold text-lg">Inquadra Codice</span>
-            <button id="btnStopScan" class="text-gray-300 bg-gray-800 px-4 py-2 rounded font-semibold">Annulla</button>
-        </div>
-        <div class="flex-grow relative bg-black overflow-hidden">
-            <div id="reader" class="w-full h-full"></div>
-            <div class="absolute inset-0 border-2 border-red-500 opacity-30 pointer-events-none" style="top: 25%; bottom: 25%; left: 10%; right: 10%;"></div>
-        </div>
-        <div class="p-6 bg-gray-900 text-center text-gray-400 text-sm z-20 pb-10">
-            Posiziona il codice a barre nel riquadro
-        </div>
-    </div>
-
-    <!-- CONFIRM TRANSACTION MODAL -->
-    <div id="scanConfirmModal" class="hidden fixed inset-0 bg-black bg-opacity-95 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl border border-gray-700">
-            <h2 class="text-2xl font-bold text-white mb-1" id="confirmTitle">Conferma Carico</h2>
-            <div class="text-indigo-300 text-sm mb-4 font-mono" id="confirmBarcode">...</div>
-            <div class="bg-gray-700/50 rounded-lg p-4 mb-4 border border-gray-600">
-                <div class="text-gray-400 text-xs uppercase mb-1">Prodotto</div>
-                <div class="text-xl font-bold text-white leading-tight mb-2" id="confirmProduct">...</div>
-                <div class="text-xs text-gray-400">Contenuto: <span id="confirmBoxQty" class="text-white font-bold">...</span> pezzi/collo</div>
-            </div>
-            <label class="block text-xs text-gray-400 uppercase mb-2 font-bold text-left">Quanti colli/scatole?</label>
-            <div class="flex items-center mb-4">
-                <button id="btnConfirmMinus" class="bg-gray-600 hover:bg-gray-500 w-16 py-4 rounded-l-xl text-xl font-bold text-white border-r border-gray-700">-</button>
-                <input type="number" id="confirmInputQty" value="1" class="w-full bg-gray-900 text-center text-white py-4 border-y border-gray-700 font-bold text-3xl focus:outline-none focus:border-indigo-500">
-                <button id="btnConfirmPlus" class="bg-gray-600 hover:bg-gray-500 w-16 py-4 rounded-r-xl text-xl font-bold text-white border-l border-gray-700">+</button>
-            </div>
-            <div class="text-right mb-6 text-sm">
-                <span class="text-gray-400">Totale Pezzi: </span>
-                <span class="text-2xl font-bold text-green-400" id="confirmTotalPreview">0</span>
-            </div>
-            <div class="space-y-3">
-                <button id="btnConfirmAction" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 rounded-xl text-xl shadow-lg flex items-center justify-center">CONFERMA</button>
-                <button id="btnConfirmCancel" class="w-full bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium py-3 rounded-xl flex items-center justify-center border border-gray-600">Annulla</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Result Modal -->
-    <div id="resultModal" class="hidden fixed inset-0 bg-black bg-opacity-95 z-50 flex flex-col items-center justify-center p-6 backdrop-blur-sm">
-        <div class="bg-gray-800 rounded-2xl p-6 w-full max-w-sm text-center shadow-2xl border border-gray-700">
-            <div id="resultIconCtx" class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg bg-green-500">
-                <svg class="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
-            </div>
-            <h2 class="text-3xl font-bold text-white mb-4">SALVATO!</h2>
-            <div class="space-y-3">
-                <button id="btnNextScan" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl text-xl shadow-lg flex items-center justify-center">PROSSIMA SCATOLA</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Config Modal -->
-    <div id="configModal" class="hidden fixed inset-0 bg-black bg-opacity-95 z-50 flex items-center justify-center px-4">
-        <div class="bg-gray-800 w-full max-w-md p-6 rounded-2xl shadow-2xl border border-gray-600">
-            <h3 class="text-xl font-bold text-white mb-1" id="configTitle">Configura Prodotto</h3>
-            <p class="text-indigo-400 font-mono text-sm mb-6 bg-gray-900 p-2 rounded text-center border border-gray-700" id="modalBarcode">---</p>
-            <label class="block text-xs text-gray-400 uppercase mb-2 font-bold">1. Che prodotto è?</label>
-            <div class="relative mb-6">
-                <select id="modalProduct" class="w-full bg-gray-700 text-white p-4 pr-8 rounded-xl border border-gray-600 focus:border-indigo-500 outline-none appearance-none font-bold text-lg"></select>
-            </div>
-            <label class="block text-xs text-gray-400 uppercase mb-2 font-bold">2. Pezzi dentro UNA scatola</label>
-            <div class="flex items-center mb-8">
-                <button id="btnQtyMinus" class="bg-gray-600 hover:bg-gray-500 w-16 py-4 rounded-l-xl text-xl font-bold text-white border-r border-gray-700">-</button>
-                <input type="number" id="modalQty" value="1" class="w-full bg-gray-900 text-center text-white py-4 border-y border-gray-700 font-bold text-2xl focus:outline-none">
-                <button id="btnQtyPlus" class="bg-gray-600 hover:bg-gray-500 w-16 py-4 rounded-r-xl text-xl font-bold text-white border-l border-gray-700">+</button>
-            </div>
-            <div class="grid grid-cols-2 gap-3">
-                <button id="btnCloseConfig" class="w-full bg-gray-700 text-gray-300 font-bold py-3 rounded-xl">Annulla</button>
-                <button id="btnSaveConfig" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl shadow-lg">Salva e Continua</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Summary Modal -->
-    <div id="summaryModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-95 z-50 flex flex-col pt-10 px-4 pb-4">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-2xl font-bold text-white">Riepilogo Cloud</h2>
-            <button id="btnCloseSummary" class="bg-gray-700 p-2 rounded-full text-white"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg></button>
-        </div>
-        <div class="flex-grow overflow-y-auto bg-gray-800 rounded-xl border border-gray-700 p-2">
-            <table class="w-full text-sm text-left text-gray-400">
-                <thead class="text-xs text-gray-500 uppercase bg-gray-900 sticky top-0"><tr><th class="px-2 py-3 rounded-tl-lg">Prodotto</th><th class="px-2 py-3 text-right rounded-tr-lg">Tot.</th></tr></thead>
-                <tbody id="summaryBody" class="divide-y divide-gray-700"></tbody>
-            </table>
-        </div>
-        <div class="mt-4 pt-4 border-t border-gray-800">
-            <div class="grid grid-cols-2 gap-3 mb-3">
-                <button id="btnDownJson" class="w-full bg-green-600 text-white font-bold py-3 rounded-xl text-sm">JSON</button>
-                <button id="btnDownPdf" class="w-full bg-red-600 text-white font-bold py-3 rounded-xl text-sm">PDF</button>
-            </div>
-            <!-- Tasto Reset (Protetto) -->
-            <button id="btnResetAll" class="w-full bg-gray-800 border border-red-900 text-red-500 font-bold py-3 rounded-xl text-sm flex items-center justify-center hover:bg-red-900 hover:text-white transition-colors">
-                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                RESET TOTALE (MASTER)
-            </button>
-        </div>
-    </div>
-
-    <audio id="beepOk" preload="auto"><source src="https://assets.mixkit.co/sfx/preview/mixkit-message-pop-alert-2354.mp3" type="audio/mpeg"></audio>
-    <audio id="beepNew" preload="auto"><source src="https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3" type="audio/mpeg"></audio>
-
-    <!-- LOGICA APP CON FIREBASE -->
+    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        // Importiamo deleteDoc per la funzione di reset
-        import { getFirestore, collection, addDoc, deleteDoc, onSnapshot, query, orderBy, limit, doc, setDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, doc, setDoc, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-        // --- CONFIGURAZIONE FIREBASE ---
+        // CONFIGURE FIREBASE HERE
         const firebaseConfig = {
-            apiKey: "AIzaSyCmctDOMIQMECm1TZWP5mqdQj125JoAb0U",
-            authDomain: "magazzinoapp-da238.firebaseapp.com",
-            projectId: "magazzinoapp-da238",
-            storageBucket: "magazzinoapp-da238.firebasestorage.app",
-            messagingSenderId: "661006798558",
-            appId: "1:661006798558:web:54c5ff86daee54bee77c4f"
+            // Replace with your keys
+            apiKey: "YOUR_API_KEY_HERE",
+            projectId: "YOUR_PROJECT_ID_HERE"
         };
 
-        let db;
+        // Initialize Firebase specific logic if config is present
+        let db = null;
         try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            
-            // --- ATTIVAZIONE PERSISTENZA OFFLINE ---
-            enableIndexedDbPersistence(db)
-                .catch((err) => {
-                    if (err.code == 'failed-precondition') {
-                        console.warn("Persistenza fallita: Più tab aperti.");
-                    } else if (err.code == 'unimplemented') {
-                        console.warn("Il browser non supporta la persistenza offline.");
-                    }
-                });
-            
+            if (firebaseConfig.apiKey !== "YOUR_API_KEY_HERE") {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                console.log("Firebase initialized");
+            }
         } catch (e) {
-            console.error(e);
-            alert("Errore Firebase. Controlla console.");
+            console.error("Firebase init failed", e);
         }
 
-        // --- GESTIONE STATO CONNESSIONE UI ---
-        const connStatusDot = document.getElementById('connectionStatus');
-        const connStatusText = document.getElementById('connectionText');
+        const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
-        function updateOnlineStatus() {
-            if (navigator.onLine) {
-                connStatusDot.classList.remove('status-offline');
-                connStatusDot.classList.add('status-online');
-                connStatusText.innerText = "ONLINE";
-                connStatusText.classList.remove('text-red-400');
-                connStatusText.classList.add('text-green-400');
-            } else {
-                connStatusDot.classList.remove('status-online');
-                connStatusDot.classList.add('status-offline');
-                connStatusText.innerText = "OFFLINE (Salvataggio locale)";
-                connStatusText.classList.remove('text-green-400');
-                connStatusText.classList.add('text-red-400');
-            }
-        }
+        createApp({
+            setup() {
+                // State
+                const currentView = ref('dashboard'); // dashboard, session, inventory
+                const isOnline = ref(navigator.onLine);
+                const sessions = ref([]);
+                const activeSessionId = ref(null);
+                const newSessionName = ref('');
 
-        window.addEventListener('online', updateOnlineStatus);
-        window.addEventListener('offline', updateOnlineStatus);
-        updateOnlineStatus(); // Check iniziale
+                const newItemName = ref('');
+                const newItemQty = ref('');
+                const searchQuery = ref('');
+                const itemInput = ref(null); // Ref for focus
 
-        // --- DATABASE PRODOTTI ---
-        const productList = [
-            { id: 1, name: "BBRAUN - XEVONTA 1,5" }, { id: 2, name: "BBRAUN - XEVONTA 1.8" },
-            { id: 3, name: "BBRAUN - DIACAP" }, { id: 4, name: "GAMBRO - NEPHRAL 400" },
-            { id: 5, name: "GAMBRO - U-9000" }, { id: 6, name: "ESTOR - BK 1.3 F" },
-            { id: 7, name: "ESTOR - BK 1.6 F" }, { id: 8, name: "ESTOR - BK 2.1 F" },
-            { id: 9, name: "ESTOR - BG 1.6U" }, { id: 10, name: "ESTOR - TORALIGTH NV 15U" },
-            { id: 11, name: "BELLCO - KIT HER LINEE" }, { id: 12, name: "GAMBRO - ARTIS" },
-            { id: 13, name: "GAMBRO - EVACLEAN" }, { id: 14, name: "BBRAUN - LINEE SENZA SET" },
-            { id: 15, name: "BBRAUN - LINEE CON SET" }, { id: 16, name: "BBRAUN - LINEE MONOAGO" },
-            { id: 17, name: "BBRAUN - 874" }, { id: 18, name: "GAMBRO - HOSPASOL" },
-            { id: 19, name: "GAMBRO - SAFEBAG KB" }, { id: 20, name: "GENERICO - PRONTOPRIME" },
-            { id: 21, name: "BBRAUN - BICART" }, { id: 22, name: "BELLCO - BIFLEXY BICARBON." },
-            { id: 23, name: "BELLCO - LYMPHA SOL ACIDA" }, { id: 24, name: "AGHI - 15 G" },
-            { id: 25, name: "AGHI - 16 G" }, { id: 26, name: "AGHI - MONOAGO" },
-            { id: 27, name: "COVIDIEN - CVC 11-15" }, { id: 28, name: "COVIDIEN - CVC 11-20" },
-            { id: 29, name: "GAMBRO - CLEARCART A" }, { id: 30, name: "GAMBRO - CLEARCART C" },
-            { id: 31, name: "MAROVAN - SALE PER OSMOSI" }, { id: 32, name: "ESTOR - FISTO BLOCK" },
-            { id: 33, name: "GENERICO - PREMIFISTOLA" }, { id: 34, name: "GENERICO - KIT CVC" },
-            { id: 35, name: "GENERICO - KIT FAV" }, { id: 36, name: "GENERICO - TAURO LOCK URO" },
-            { id: 37, name: "GENERICO - TAURO LOCK EPA" }, { id: 38, name: "GENERICO - IVOR 3500" },
-            { id: 39, name: "GENERICO - IVOR 2500" }
-        ];
+                // Load from LocalStorage
+                onMounted(() => {
+                    const saved = localStorage.getItem('cm_sessions');
+                    if (saved) {
+                        try {
+                            // Deserialize dates properly would be better, but strings OK for simple display
+                            sessions.value = JSON.parse(saved);
+                        } catch (e) { console.error(e) }
+                    }
 
-        let mappings = JSON.parse(localStorage.getItem('scanner_mappings') || '{}');
-        let logsData = [];
-        let sessionSettings = JSON.parse(localStorage.getItem('scanner_session_settings') || '{"operator":"", "mode":"IN"}');
-        let currentMap = null; 
+                    window.addEventListener('online', () => { isOnline.value = true; syncData(); });
+                    window.addEventListener('offline', () => isOnline.value = false);
 
-        function init() {
-            const select = document.getElementById('modalProduct');
-            productList.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p.id;
-                opt.text = p.name;
-                select.appendChild(opt);
-            });
-            document.getElementById('operatorName').value = sessionSettings.operator;
-            if(sessionSettings.mode === 'OUT') document.getElementById('modeToggle').checked = true;
-            updateModeUI();
-            setupFirebaseListeners();
-        }
-
-        function setupFirebaseListeners() {
-            if(!db) return;
-            const q = query(collection(db, "movements"), orderBy("timestamp", "desc"), limit(100));
-            onSnapshot(q, (snapshot) => {
-                const source = snapshot.metadata.hasPendingWrites ? "Locale" : "Server";
-                console.log("Dati ricevuti da: " + source);
-                
-                document.getElementById('syncIndicator').classList.remove('hidden');
-                logsData = [];
-                snapshot.forEach((doc) => { logsData.push({ id: doc.id, ...doc.data() }); });
-                updateDashboard();
-                setTimeout(() => document.getElementById('syncIndicator').classList.add('hidden'), 500);
-            });
-            const mapRef = doc(db, "settings", "mappings");
-            onSnapshot(mapRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    mappings = { ...mappings, ...docSnap.data() };
-                    localStorage.setItem('scanner_mappings', JSON.stringify(mappings));
-                }
-            });
-        }
-
-        // --- HANDLERS ---
-        const btnStart = document.getElementById('btnStartScan');
-        const btnStop = document.getElementById('btnStopScan');
-        const btnNext = document.getElementById('btnNextScan');
-        
-        let scanner = null;
-        let isProcessing = false;
-        let lastScannedCode = null;
-
-        btnStart.addEventListener('click', startScanner);
-        btnStop.addEventListener('click', stopScannerAndClose);
-        btnNext.addEventListener('click', () => {
-            document.getElementById('resultModal').classList.add('hidden');
-            startScanner();
-        });
-
-        document.getElementById('btnQtyMinus').addEventListener('click', () => adjQty('modalQty', -1));
-        document.getElementById('btnQtyPlus').addEventListener('click', () => adjQty('modalQty', 1));
-        document.getElementById('btnCloseConfig').addEventListener('click', closeConfigModal);
-        document.getElementById('btnSaveConfig').addEventListener('click', saveConfig);
-
-        document.getElementById('btnConfirmMinus').addEventListener('click', () => { adjQty('confirmInputQty', -1); updateConfirmPreview(); });
-        document.getElementById('btnConfirmPlus').addEventListener('click', () => { adjQty('confirmInputQty', 1); updateConfirmPreview(); });
-        document.getElementById('confirmInputQty').addEventListener('input', updateConfirmPreview);
-        document.getElementById('btnConfirmAction').addEventListener('click', confirmTransaction);
-        document.getElementById('btnConfirmCancel').addEventListener('click', () => {
-             document.getElementById('scanConfirmModal').classList.add('hidden');
-             startScanner(); 
-        });
-
-        document.getElementById('operatorName').addEventListener('change', saveSessionSettings);
-        document.getElementById('modeToggle').addEventListener('click', toggleMode);
-        document.getElementById('btnSummary').addEventListener('click', showSummary);
-        document.getElementById('btnCloseSummary').addEventListener('click', closeSummary);
-        document.getElementById('btnDownJson').addEventListener('click', downloadJSON);
-        document.getElementById('btnDownPdf').addEventListener('click', downloadPDF);
-        document.getElementById('btnExportJson').addEventListener('click', downloadJSON);
-        
-        // --- FUNZIONE DI RESET DATI ---
-        document.getElementById('btnResetAll').addEventListener('click', wipeAllData);
-
-        async function wipeAllData() {
-            // PROTEZIONE PIN (SOLO MASTER)
-            const pin = prompt("🔐 AREA RISERVATA\nInserisci il PIN Master per resettare il database:");
-            if(pin !== "9999") { // PIN DI ESEMPIO
-                alert("⛔ PIN Errato. Accesso negato.");
-                return;
-            }
-
-            if(!confirm("⚠️ ATTENZIONE MASTER ⚠️\n\nStai per cancellare TUTTI i dati inseriti (movimenti e configurazioni) dal Cloud e dal telefono.\n\nNon è annullabile. Procedere?")) return;
-
-            // 1. Cancella Mappature Cloud
-            if(db) {
-                try {
-                    await deleteDoc(doc(db, "settings", "mappings"));
-                    console.log("Mappature cancellate");
-                } catch(e) { console.error("Errore cancellazione mappe", e); }
-
-                // 2. Cancella Movimenti visibili
-                for(let log of logsData) {
-                    try {
-                        await deleteDoc(doc(db, "movements", log.id));
-                    } catch(e) { console.error("Errore cancellazione log", e); }
-                }
-            }
-
-            // 3. Cancella Locale
-            localStorage.clear();
-
-            alert("Reset Master completato.");
-            location.reload();
-        }
-
-        function saveSessionSettings() {
-            const op = document.getElementById('operatorName').value;
-            const mode = document.getElementById('modeToggle').checked ? 'OUT' : 'IN';
-            sessionSettings = { operator: op, mode: mode };
-            localStorage.setItem('scanner_session_settings', JSON.stringify(sessionSettings));
-            updateModeUI();
-            const actionBtn = document.getElementById('btnConfirmAction');
-            if(mode === 'OUT') {
-                actionBtn.innerText = "CONFERMA SCARICO";
-                actionBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
-                actionBtn.classList.add('bg-red-600', 'hover:bg-red-700');
-            } else {
-                actionBtn.innerText = "CONFERMA CARICO";
-                actionBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
-                actionBtn.classList.add('bg-green-600', 'hover:bg-green-700');
-            }
-        }
-
-        function toggleMode() { saveSessionSettings(); }
-
-        function updateModeUI() {
-            const isOut = sessionSettings.mode === 'OUT';
-            const label = document.getElementById('modeLabel');
-            const indicator = document.getElementById('modeIndicator');
-            const toggleLabel = document.querySelector('.toggle-label');
-            if (isOut) {
-                label.innerText = "SCARICO"; label.classList.replace('text-green-500', 'text-red-500');
-                indicator.className = "absolute bottom-0 left-0 w-full h-1 bg-red-500";
-                toggleLabel.style.backgroundColor = "#ef4444";
-            } else {
-                label.innerText = "CARICO"; label.classList.replace('text-red-500', 'text-green-500');
-                indicator.className = "absolute bottom-0 left-0 w-full h-1 bg-green-500";
-                toggleLabel.style.backgroundColor = "#10b981";
-            }
-        }
-
-        function unlockAudio() {
-            const a1 = document.getElementById('beepOk');
-            const a2 = document.getElementById('beepNew');
-            a1.play().then(()=>{a1.pause();a1.currentTime=0;}).catch(()=>{});
-            a2.play().then(()=>{a2.pause();a2.currentTime=0;}).catch(()=>{});
-        }
-
-        function startScanner() {
-            unlockAudio();
-            document.getElementById('scanConfirmModal').classList.add('hidden');
-            document.getElementById('configModal').classList.add('hidden');
-            document.getElementById('scannerOverlay').classList.remove('hidden');
-            isProcessing = false;
-
-            if (!scanner) scanner = new Html5Qrcode("reader");
-            scanner.start({ facingMode: "environment" }, { fps: 15, qrbox: 250, aspectRatio: 1.0 }, onScanSuccess)
-                .catch(err => { console.error(err); alert("Errore camera: "+err); document.getElementById('scannerOverlay').classList.add('hidden'); });
-        }
-
-        function stopScannerAndClose() {
-            if (scanner) scanner.stop().then(() => document.getElementById('scannerOverlay').classList.add('hidden')).catch(() => document.getElementById('scannerOverlay').classList.add('hidden'));
-            else document.getElementById('scannerOverlay').classList.add('hidden');
-        }
-
-        function onScanSuccess(decodedText) {
-            if (isProcessing) return;
-            isProcessing = true;
-            const audio = document.getElementById('beepNew'); 
-            audio.currentTime = 0; audio.play();
-
-            if(scanner) scanner.stop().then(() => {
-                document.getElementById('scannerOverlay').classList.add('hidden');
-                processScan(decodedText);
-            }).catch(() => {
-                document.getElementById('scannerOverlay').classList.add('hidden');
-                processScan(decodedText);
-            });
-        }
-
-        function processScan(decodedText) {
-            lastScannedCode = decodedText;
-            if (mappings[decodedText]) {
-                currentMap = mappings[decodedText];
-                showConfirmModal(decodedText, currentMap);
-            } else {
-                showConfigModal(decodedText, true);
-            }
-        }
-
-        function showConfirmModal(barcode, map) {
-            const prod = productList.find(p => p.id === map.productId);
-            document.getElementById('confirmTitle').innerText = (sessionSettings.mode === 'OUT') ? "Conferma Scarico" : "Conferma Carico";
-            document.getElementById('confirmBarcode').innerText = barcode;
-            document.getElementById('confirmProduct').innerText = prod ? prod.name : "Ignoto";
-            document.getElementById('confirmBoxQty').innerText = map.boxQty;
-            
-            document.getElementById('confirmInputQty').value = 1;
-            setTimeout(() => document.getElementById('confirmInputQty').focus(), 100);
-
-            updateConfirmPreview();
-            saveSessionSettings();
-            document.getElementById('scanConfirmModal').classList.remove('hidden');
-        }
-
-        function updateConfirmPreview() {
-            if(!currentMap) return;
-            const boxes = parseInt(document.getElementById('confirmInputQty').value) || 0;
-            const piecesPerBox = parseInt(currentMap.boxQty) || 1;
-            const total = boxes * piecesPerBox;
-            document.getElementById('confirmTotalPreview').innerText = total + " Pezzi";
-        }
-
-        async function confirmTransaction() {
-            const boxes = parseInt(document.getElementById('confirmInputQty').value);
-            if(boxes <= 0) { alert("Quantità non valida"); return; }
-            await registerTransaction(currentMap, boxes);
-            const audio = document.getElementById('beepOk');
-            audio.currentTime = 0; audio.play();
-            document.getElementById('scanConfirmModal').classList.add('hidden');
-            document.getElementById('resultModal').classList.remove('hidden');
-        }
-
-        function showConfigModal(barcode, isNew) {
-            document.getElementById('configModal').classList.remove('hidden');
-            document.getElementById('modalBarcode').innerText = barcode;
-            document.getElementById('configTitle').innerText = isNew ? "Nuovo Prodotto" : "Modifica Config";
-            if(mappings[barcode]) {
-                document.getElementById('modalProduct').value = mappings[barcode].productId;
-                document.getElementById('modalQty').value = mappings[barcode].boxQty;
-            } else {
-                document.getElementById('modalQty').value = 1;
-                document.getElementById('modalProduct').selectedIndex = 0;
-            }
-        }
-
-        function closeConfigModal() { document.getElementById('configModal').classList.add('hidden'); }
-
-        function adjQty(id, delta) {
-            const input = document.getElementById(id);
-            let val = parseInt(input.value) + delta;
-            if (val < 1) val = 1;
-            input.value = val;
-        }
-
-        async function saveConfig() {
-            const barcode = document.getElementById('modalBarcode').innerText;
-            const productId = parseInt(document.getElementById('modalProduct').value);
-            const boxQty = parseInt(document.getElementById('modalQty').value);
-
-            const newMap = { productId, boxQty: boxQty };
-            mappings[barcode] = newMap;
-            localStorage.setItem('scanner_mappings', JSON.stringify(mappings));
-            
-            if(db) {
-                const mapRef = doc(db, "settings", "mappings");
-                await setDoc(mapRef, { [barcode]: newMap }, { merge: true });
-            }
-
-            closeConfigModal();
-            currentMap = newMap;
-            showConfirmModal(barcode, newMap);
-        }
-
-        async function registerTransaction(map, multiplier) {
-            const isOut = sessionSettings.mode === 'OUT';
-            const piecesPerBox = parseInt(map.boxQty);
-            const totalPieces = piecesPerBox * multiplier;
-            
-            const finalQty = isOut ? -totalPieces : totalPieces;
-            const prod = productList.find(p => p.id === map.productId);
-            const now = new Date().toISOString();
-
-            const logEntry = {
-                timestamp: now,
-                barcode: lastScannedCode,
-                productId: map.productId,
-                productName: prod ? prod.name : "Ignoto",
-                boxQty: piecesPerBox,
-                colli: multiplier,
-                totalQty: finalQty,
-                operator: sessionSettings.operator || "Anonimo",
-                type: sessionSettings.mode
-            };
-
-            if(!db) {
-                logsData.unshift(logEntry);
-                updateDashboard();
-            } else {
-                try {
-                    await addDoc(collection(db, "movements"), logEntry);
-                } catch (e) {
-                    console.error("Errore scrittura cloud:", e);
-                    alert("Errore salvataggio: " + e.message);
-                }
-            }
-        }
-
-        function updateDashboard() {
-            let totalPieces = 0;
-            logsData.forEach(log => totalPieces += log.totalQty);
-            document.getElementById('scanCount').innerText = logsData.length;
-            document.getElementById('piecesCount').innerText = totalPieces;
-            
-            const container = document.getElementById('logContainer');
-            container.innerHTML = '';
-            if (logsData.length === 0) {
-                container.innerHTML = '<div class="text-center text-gray-600 py-8 text-sm italic">Nessun dato recente</div>';
-            } else {
-                logsData.forEach(log => {
-                    const el = document.createElement('div');
-                    const isOut = log.type === 'OUT';
-                    const timeStr = log.timestamp ? log.timestamp.split('T')[1].substring(0,5) : "--:--";
-                    el.className = `bg-gray-800 p-3 rounded-lg flex justify-between items-center border-l-4 ${isOut ? 'border-red-500' : 'border-green-500'} shadow-sm`;
-                    el.innerHTML = `
-                        <div class="overflow-hidden w-2/3">
-                            <div class="font-bold text-sm text-gray-200 truncate">${log.productName}</div>
-                            <div class="text-[10px] text-gray-500 flex items-center">
-                                <span class="mr-2 text-indigo-300 font-mono">${timeStr}</span>
-                                <span>${log.colli} Colli x ${log.boxQty}</span>
-                            </div>
-                        </div>
-                        <div class="text-xl font-bold ${isOut ? 'text-red-400' : 'text-green-400'} whitespace-nowrap ml-2">
-                            ${log.totalQty > 0 ? '+' : ''}${log.totalQty}
-                        </div>
-                    `;
-                    container.appendChild(el);
+                    // Lucide icons
+                    nextTick(() => lucide.createIcons());
                 });
+
+                // Persistence Watcher
+                watch(sessions, (newVal) => {
+                    localStorage.setItem('cm_sessions', JSON.stringify(newVal));
+                    // Trigger sync if online
+                    if (isOnline.value) syncData();
+                    // Re-render icons on DOM updates
+                    setTimeout(() => lucide.createIcons(), 100);
+                }, { deep: true });
+
+                watch(currentView, () => {
+                    setTimeout(() => lucide.createIcons(), 50);
+                });
+
+                // Computed
+                const openSessions = computed(() => sessions.value.filter(s => s.status === 'open').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
+                const closedSessions = computed(() => sessions.value.filter(s => s.status === 'closed').sort((a, b) => new Date(b.closedAt) - new Date(a.closedAt)));
+
+                const activeSession = computed(() => sessions.value.find(s => s.id === activeSessionId.value) || {});
+
+                const inventory = computed(() => {
+                    const map = new Map();
+                    closedSessions.value.forEach(sess => {
+                        sess.items.forEach(item => {
+                            const k = item.name.toLowerCase().trim();
+                            const curr = map.get(k) || { name: item.name, quantity: 0 };
+                            map.set(k, { ...curr, quantity: curr.quantity + item.quantity });
+                        });
+                    });
+                    return Array.from(map.values());
+                });
+
+                const filteredInventory = computed(() => {
+                    if (!searchQuery.value) return inventory.value;
+                    return inventory.value.filter(i => i.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
+                });
+
+                // Actions
+                const createSession = () => {
+                    const name = newSessionName.value.trim() || `Carico ${new Date().toLocaleDateString()}`;
+                    const newSess = {
+                        id: crypto.randomUUID(),
+                        name,
+                        createdAt: new Date().toISOString(),
+                        status: 'open',
+                        items: [],
+                        unsynced: true // Mark as dirty
+                    };
+                    sessions.value.push(newSess);
+                    newSessionName.value = '';
+                    openSession(newSess.id);
+                };
+
+                const openSession = (id) => {
+                    activeSessionId.value = id;
+                    currentView.value = 'session';
+                };
+
+                const addItem = () => {
+                    if (!newItemName.value || !newItemQty.value) return;
+                    const session = sessions.value.find(s => s.id === activeSessionId.value);
+                    if (session) {
+                        session.items.push({
+                            name: newItemName.value,
+                            quantity: parseInt(newItemQty.value)
+                        });
+                        session.unsynced = true; // Mark modified
+                        newItemName.value = '';
+                        newItemQty.value = '';
+                        // Keep focus
+                        nextTick(() => itemInput.value?.focus());
+                    }
+                };
+
+                const removeItem = (idx) => {
+                    const session = sessions.value.find(s => s.id === activeSessionId.value);
+                    if (session) {
+                        session.items.splice(idx, 1);
+                        session.unsynced = true;
+                    }
+                };
+
+                const closeActiveSession = () => {
+                    if (!confirm("Confermi di voler chiudere la sessione?\nI prodotti verranno aggiunti alla giacenza totale.")) return;
+                    const session = sessions.value.find(s => s.id === activeSessionId.value);
+                    if (session) {
+                        session.status = 'closed';
+                        session.closedAt = new Date().toISOString();
+                        session.unsynced = true;
+                        currentView.value = 'dashboard';
+                    }
+                };
+
+                const formatDate = (iso) => {
+                    if (!iso) return '';
+                    return new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                };
+
+                // SYNC LOGIC
+                const syncData = async () => {
+                    if (!db || !isOnline.value) return;
+
+                    const dirtySessions = sessions.value.filter(s => s.unsynced);
+                    if (dirtySessions.length === 0) return;
+
+                    console.log(`Syncing ${dirtySessions.length} sessions...`);
+
+                    for (const sess of dirtySessions) {
+                        try {
+                            // Deep copy to remove internal flags if needed, or structuredClone
+                            // We save everything to Firestore
+                            const docRef = doc(collection(db, "sessions"), sess.id);
+                            await setDoc(docRef, { ...sess, unsynced: false, lastSync: Timestamp.now() }, { merge: true });
+
+                            // Update local state to clean
+                            sess.unsynced = false;
+                        } catch (e) {
+                            console.error("Sync failed for", sess.id, e);
+                        }
+                    }
+                };
+
+                return {
+                    currentView, isOnline, newSessionName, newItemName, newItemQty, searchQuery, itemInput,
+                    openSessions, closedSessions, activeSession, filteredInventory,
+                    createSession, openSession, addItem, removeItem, closeActiveSession, formatDate
+                };
             }
-        }
-
-        function showSummary() {
-            const summary = {};
-            logsData.forEach(log => {
-                if(!summary[log.productId]) summary[log.productId] = { name: log.productName, total: 0 };
-                summary[log.productId].total += log.totalQty;
-            });
-            const tbody = document.getElementById('summaryBody');
-            tbody.innerHTML = '';
-            Object.values(summary).forEach(item => {
-                if(item.total === 0) return;
-                const row = document.createElement('tr');
-                row.innerHTML = `<td class="px-2 py-3 font-medium text-white border-b border-gray-700">${item.name}</td><td class="px-2 py-3 text-right font-bold ${item.total < 0 ? 'text-red-400' : 'text-green-400'} border-b border-gray-700">${item.total}</td>`;
-                tbody.appendChild(row);
-            });
-            document.getElementById('summaryModal').classList.remove('hidden');
-        }
-
-        function closeSummary() { document.getElementById('summaryModal').classList.add('hidden'); }
-        function downloadJSON() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({timestamp: new Date().toISOString(), logs: logsData}));
-            const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "cloud_export.json"); document.body.appendChild(dl); dl.click(); dl.remove();
-        }
-        function downloadPDF() {
-            const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            doc.setFillColor(31, 41, 55); doc.rect(0, 0, 210, 20, 'F');
-            doc.setTextColor(255, 255, 255); doc.setFontSize(16); doc.text("Report Cloud", 14, 13);
-            const logsRows = logsData.map(log => [log.timestamp.split('T')[1].substring(0,8), log.operator, log.productName, log.colli + " Colli", log.totalQty]);
-            doc.autoTable({ head: [['Ora', 'Op', 'Prodotto', 'Dettaglio', 'Tot. Pezzi']], body: logsRows, startY: 30, theme: 'striped' });
-            doc.save(`report.pdf`);
-        }
-        
-        init();
+        }).mount('#app');
     </script>
 </body>
+
 </html>
