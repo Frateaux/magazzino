@@ -43,7 +43,17 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2">
+        <div id="session-controls" class="mt-3 bg-gray-800 p-2 rounded-lg border border-gray-700">
+            <div class="flex justify-between items-center">
+                <div>
+                    <span class="text-xs text-gray-400">Sessione</span>
+                    <span id="sessionId" class="text-xs font-mono text-indigo-400">N/A</span>
+                </div>
+                <button id="btnSession" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-bold">Inizia Sessione</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 mt-2">
             <div>
                 <input type="text" id="operatorName" placeholder="Nome Operatore" class="w-full bg-gray-900 text-white text-sm border border-gray-600 rounded px-2 py-1 focus:border-indigo-500 outline-none">
             </div>
@@ -89,7 +99,7 @@
 
     <!-- Scanner Trigger -->
     <div class="fixed bottom-6 left-0 w-full flex justify-center z-20 pointer-events-none">
-        <button id="btnStartScan" class="pointer-events-auto scan-btn bg-indigo-600 active:bg-indigo-700 text-white rounded-full w-20 h-20 flex items-center justify-center shadow-2xl border-4 border-gray-900 transform transition active:scale-95">
+        <button id="btnStartScan" class="pointer-events-auto scan-btn bg-indigo-600 active:bg-indigo-700 text-white rounded-full w-20 h-20 flex items-center justify-center shadow-2xl border-4 border-gray-900 transform transition active:scale-95 disabled:bg-gray-600 disabled:opacity-50" disabled>
             <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"></path></svg>
         </button>
     </div>
@@ -198,7 +208,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         // Importiamo enableIndexedDbPersistence per il supporto OFFLINE
-        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, doc, setDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, limit, doc, setDoc, enableIndexedDbPersistence, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // --- CONFIGURAZIONE FIREBASE ---
         const firebaseConfig = {
@@ -291,10 +301,137 @@
                 opt.text = p.name;
                 select.appendChild(opt);
             });
-            document.getElementById('operatorName').value = sessionSettings.operator;
-            if(sessionSettings.mode === 'OUT') document.getElementById('modeToggle').checked = true;
+            
+            document.getElementById('btnSession').addEventListener('click', handleSessionClick);
+
+            loadSession(); // Must be called before setting up listeners
+            
+            // Only set these from sessionSettings if there is no active session
+            if (!currentSession) {
+                document.getElementById('operatorName').value = sessionSettings.operator;
+                if (sessionSettings.mode === 'OUT') document.getElementById('modeToggle').checked = true;
+            }
+
             updateModeUI();
             setupFirebaseListeners();
+        }
+
+        // --- SESSION LOGIC ---
+        function loadSession() {
+            const savedSession = localStorage.getItem('current_session');
+            if (savedSession) {
+                currentSession = JSON.parse(savedSession);
+                logsData = currentSession.movements;
+            } else {
+                currentSession = null;
+                logsData = [];
+            }
+            updateSessionUI();
+            updateDashboard();
+        }
+
+        function startSession() {
+            if (currentSession) return;
+            const operator = document.getElementById('operatorName').value.trim();
+            if (!operator) {
+                alert("Per favore, inserisci un nome operatore per iniziare una sessione.");
+                return;
+            }
+            const sessionId = `SESS-${Date.now()}`;
+            currentSession = {
+                id: sessionId,
+                startTime: new Date().toISOString(),
+                operator: operator,
+                mode: document.getElementById('modeToggle').checked ? 'OUT' : 'IN',
+                movements: []
+            };
+            localStorage.setItem('current_session', JSON.stringify(currentSession));
+            logsData = [];
+            updateSessionUI();
+            updateDashboard();
+            setupFirebaseListeners(); // Disconnects listeners
+        }
+
+        async function endSession() {
+            if (!currentSession || currentSession.movements.length === 0) {
+                console.log("Sessione vuota o non attiva, chiusura senza sincronizzazione.");
+                currentSession = null;
+                localStorage.removeItem('current_session');
+                logsData = [];
+                updateSessionUI();
+                updateDashboard();
+                setupFirebaseListeners(true); // Re-fetch from cloud
+                return;
+            }
+
+            console.log("Fine sessione, avvio sincronizzazione...");
+            
+            try {
+                const batch = writeBatch(db);
+                currentSession.movements.forEach(movement => {
+                    const docRef = doc(collection(db, "movements")); // Crea un nuovo riferimento al documento
+                    batch.set(docRef, movement);
+                });
+
+                await batch.commit();
+
+                alert(`Sessione ${currentSession.id} chiusa e sincronizzata con successo! ${currentSession.movements.length} movimenti salvati.`);
+            } catch (error) {
+                console.error("Errore durante la sincronizzazione della sessione:", error);
+                alert("ATTENZIONE: Si è verificato un errore durante la sincronizzazione. I dati della sessione sono ancora salvati localmente. Riprova a chiudere la sessione quando sarai online.");
+                // In caso di errore, non puliamo la sessione, così l'utente può riprovare
+                return; 
+            }
+            
+            // Pulisce la sessione solo dopo il successo della sincronizzazione
+            currentSession = null;
+            localStorage.removeItem('current_session');
+            logsData = [];
+            updateSessionUI();
+            updateDashboard();
+            setupFirebaseListeners(true); // Re-fetch from cloud
+        }
+
+        function updateSessionUI() {
+            const btnSession = document.getElementById('btnSession');
+            const sessionIdDisplay = document.getElementById('sessionId');
+            const scanButton = document.getElementById('btnStartScan');
+            const operatorInput = document.getElementById('operatorName');
+            const modeToggleContainer = document.getElementById('modeToggle').parentNode.parentNode;
+
+            if (currentSession) {
+                btnSession.innerText = "Chiudi e Sincronizza";
+                btnSession.classList.replace('bg-green-600', 'bg-red-600');
+                btnSession.classList.replace('hover:bg-green-700', 'hover:bg-red-700');
+                sessionIdDisplay.innerText = currentSession.id;
+                scanButton.disabled = false;
+                operatorInput.disabled = true;
+                modeToggleContainer.style.pointerEvents = 'none';
+                modeToggleContainer.style.opacity = '0.5';
+                operatorInput.value = currentSession.operator;
+                // Make sure the UI reflects the session's mode
+                document.getElementById('modeToggle').checked = (currentSession.mode === 'OUT');
+                updateModeUI();
+            } else {
+                btnSession.innerText = "Inizia Sessione";
+                btnSession.classList.replace('bg-red-600', 'bg-green-600');
+                btnSession.classList.replace('hover:bg-red-700', 'hover:bg-green-700');
+                sessionIdDisplay.innerText = "N/A";
+                scanButton.disabled = true;
+                operatorInput.disabled = false;
+                modeToggleContainer.style.pointerEvents = 'auto';
+                modeToggleContainer.style.opacity = '1';
+            }
+        }
+
+        function handleSessionClick() {
+            if (currentSession) {
+                if (confirm('Sei sicuro di voler chiudere la sessione? Le modifiche verranno salvate.')) {
+                    endSession();
+                }
+            } else {
+                startSession();
+            }
         }
 
         function setupFirebaseListeners() {
@@ -444,8 +581,9 @@
         }
 
         function showConfirmModal(barcode, map) {
+            if (!currentSession) return; // Non mostrare il modale se non c'è una sessione
             const prod = productList.find(p => p.id === map.productId);
-            document.getElementById('confirmTitle').innerText = (sessionSettings.mode === 'OUT') ? "Conferma Scarico" : "Conferma Carico";
+            document.getElementById('confirmTitle').innerText = (currentSession.mode === 'OUT') ? "Conferma Scarico" : "Conferma Carico";
             document.getElementById('confirmBarcode').innerText = barcode;
             document.getElementById('confirmProduct').innerText = prod ? prod.name : "Ignoto";
             document.getElementById('confirmBoxQty').innerText = map.boxQty;
@@ -454,7 +592,18 @@
             setTimeout(() => document.getElementById('confirmInputQty').focus(), 100);
 
             updateConfirmPreview();
-            saveSessionSettings();
+            
+            const actionBtn = document.getElementById('btnConfirmAction');
+            if (currentSession.mode === 'OUT') {
+                actionBtn.innerText = "CONFERMA SCARICO";
+                actionBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                actionBtn.classList.add('bg-red-600', 'hover:bg-red-700');
+            } else {
+                actionBtn.innerText = "CONFERMA CARICO";
+                actionBtn.classList.remove('bg-red-600', 'hover:bg-red-700');
+                actionBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            }
+
             document.getElementById('scanConfirmModal').classList.remove('hidden');
         }
 
