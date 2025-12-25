@@ -4,65 +4,90 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Carico Merci Smart</title>
-    <!-- Tailwind CSS (via CDN) -->
+    <title>Carico Merci Pro</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Vue.js 3 (via CDN) -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Barcode Scanner -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <!-- PDF Export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
-
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
     <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: #f8fafc;
+            color: #1e293b;
         }
 
-        .fade-enter-active,
-        .fade-leave-active {
-            transition: opacity 0.2s ease;
-        }
-
-        .fade-enter-from,
-        .fade-leave-to {
-            opacity: 0;
+        .glass {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .card {
-            @apply bg-white rounded-xl shadow-sm border border-gray-100 p-6;
+            @apply bg-white rounded-2xl shadow-sm border border-slate-200 p-6 transition-all duration-300;
+        }
+
+        .card:hover {
+            @apply shadow-md border-indigo-200;
         }
 
         .btn {
-            @apply px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2;
+            @apply px-5 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50;
         }
 
         .btn-primary {
-            @apply bg-indigo-600 text-white hover:bg-indigo-700;
+            @apply bg-indigo-600 text-white hover:bg-indigo-700 shadow-lg shadow-indigo-100;
         }
 
-        .btn-success {
-            @apply bg-emerald-600 text-white hover:bg-emerald-700;
+        .btn-secondary {
+            @apply bg-slate-100 text-slate-700 hover:bg-slate-200;
         }
 
         .btn-danger {
-            @apply bg-red-500 text-white hover:bg-red-600;
-        }
-
-        .btn-ghost {
-            @apply text-gray-500 hover:bg-gray-100;
+            @apply bg-rose-50 text-rose-600 hover:bg-rose-100;
         }
 
         .input {
-            @apply px-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full;
+            @apply px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 w-full transition-all;
+        }
+
+        /* Custom Toggle */
+        .mode-toggle {
+            @apply flex bg-slate-100 p-1 rounded-xl w-full;
+        }
+
+        .mode-btn {
+            @apply flex-1 py-2 text-sm font-bold rounded-lg transition-all;
+        }
+
+        .mode-btn.active.carico {
+            @apply bg-emerald-500 text-white shadow-sm;
+        }
+
+        .mode-btn.active.scarico {
+            @apply bg-rose-500 text-white shadow-sm;
         }
 
         #reader {
             width: 100%;
+            border-radius: 1rem;
+            overflow: hidden;
+            border: none !important;
+        }
+
+        #reader__dashboard_section_csr button {
+            @apply btn btn-secondary text-xs p-2 mb-2;
         }
     </style>
 </head>
@@ -71,226 +96,290 @@
     <div id="app" class="min-h-screen flex flex-col">
         <!-- Status Bar -->
         <div
-            :class="['py-2 text-center text-sm font-medium text-white transition-colors', isOnline ? 'bg-indigo-600' : 'bg-red-500']">
+            :class="['py-2.5 text-center text-xs font-bold tracking-wider uppercase text-white transition-all duration-500', isOnline ? 'bg-indigo-600' : 'bg-rose-500']">
             <span v-if="isOnline" class="flex items-center justify-center gap-2">
-                <i data-lucide="wifi"></i> Online - Sincronizzazione Attiva
+                <i data-lucide="zap" class="w-3.5 h-3.5"></i> Sistema Sincronizzato
             </span>
             <span v-else class="flex items-center justify-center gap-2">
-                <i data-lucide="wifi-off"></i> Offline - Modifiche Salvate in Locale (Cache)
+                <i data-lucide="wifi-off" class="w-3.5 h-3.5"></i> Modalità Magazzino (Offline)
             </span>
         </div>
 
-        <!-- Main Content -->
-        <main class="flex-1 p-4 md:p-6 max-w-4xl mx-auto w-full">
+        <main class="flex-1 p-4 md:p-8 max-w-2xl mx-auto w-full pb-24">
 
             <!-- VIEW: DASHBOARD -->
-            <div v-if="currentView === 'dashboard'" class="space-y-6">
-                <!-- Header -->
-                <div
-                    class="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-xl shadow-sm">
-                    <h1 class="text-2xl font-bold text-gray-800">📦 Carico Merci</h1>
-                    <div class="flex gap-2">
-                        <button @click="currentView = 'inventory'"
-                            class="btn bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
-                            <i data-lucide="package"></i> Giacenza Totale
-                        </button>
+            <div v-if="currentView === 'dashboard'" class="space-y-8">
+                <header class="flex justify-between items-end mb-2">
+                    <div>
+                        <p class="text-slate-500 text-sm font-medium">Benvenuto in</p>
+                        <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Gestione Merci</h1>
                     </div>
-                </div>
-
-                <!-- Create Session -->
-                <div class="card flex gap-3">
-                    <input v-model="newSessionName" @keyup.enter="createSession" type="text"
-                        placeholder="Nome nuova sessione..." class="input">
-                    <button @click="createSession" class="btn btn-primary shrink-0">
-                        <i data-lucide="plus"></i> Nuova
+                    <button @click="currentView = 'inventory'"
+                        class="p-3 bg-white rounded-xl shadow-sm border border-slate-200 text-indigo-600 hover:text-indigo-700">
+                        <i data-lucide="package"></i>
                     </button>
-                </div>
+                </header>
 
-                <!-- Active Sessions -->
-                <section>
-                    <h2 class="text-lg font-bold text-gray-700 mb-3 ml-1 flex items-center gap-2"><span
-                            class="w-2 h-2 rounded-full bg-emerald-500"></span> Sessioni Attive</h2>
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <div v-for="session in openSessions" :key="session.id" @click="openSession(session.id)"
-                            class="card hover:border-indigo-300 cursor-pointer transition-all group relative">
-                            <div class="flex justify-between items-start">
-                                <h3 class="font-bold text-gray-800 text-lg">{{ session.name }}</h3>
-                                <i data-lucide="chevron-right" class="text-gray-300 group-hover:text-indigo-500"></i>
-                            </div>
-                            <p class="text-gray-500 text-sm mt-1">{{ session.items.length }} articoli registrati</p>
-                            <span v-if="session.unsynced"
-                                class="absolute top-4 right-10 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Non
-                                Sincronizzato</span>
-                        </div>
-                        <div v-if="openSessions.length === 0"
-                            class="p-8 text-center text-gray-400 bg-white rounded-xl border border-dashed border-gray-300">
-                            Nessuna sessione attiva
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Closed Sessions -->
-                <section>
-                    <h2 class="text-lg font-bold text-gray-700 mb-3 ml-1 flex items-center gap-2"><i
-                            data-lucide="history" size="18"></i> Storico</h2>
-                    <div class="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
-                        <div v-for="session in closedSessions" :key="session.id"
-                            class="p-4 flex justify-between items-center hover:bg-gray-50">
-                            <div>
-                                <h4 class="font-medium text-gray-800">{{ session.name }}</h4>
-                                <span class="text-xs text-gray-500">Chiusa il {{ formatDate(session.closedAt) }} • {{
-                                    session.items.length }} articoli</span>
-                            </div>
-                            <button @click="openSession(session.id)"
-                                class="btn btn-ghost btn-sm text-sm border">Vedi</button>
-                        </div>
-                    </div>
-                </section>
-            </div>
-
-            <!-- VIEW: SESSION DETAIL -->
-            <div v-if="currentView === 'session'" class="space-y-4">
-                <div class="flex items-center justify-between">
-                    <button @click="closeScannerAndBack" class="btn btn-ghost -ml-2">
-                        <i data-lucide="arrow-left"></i> Indietro
-                    </button>
-                    <div class="flex gap-2">
-                        <button v-if="activeSession.status === 'closed'" @click="exportPdf('session')"
-                            class="btn btn-ghost text-red-600 bg-red-50 hover:bg-red-100">
-                            <i data-lucide="file-down"></i> PDF
-                        </button>
-                        <span
-                            :class="['px-3 py-1 rounded-full text-sm font-bold flex items-center', activeSession.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600']">
-                            {{ activeSession.status === 'open' ? '🟢 In Corso' : '🔒 Chiusa' }}
-                        </span>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <h1 class="text-2xl font-bold text-gray-800 mb-1">{{ activeSession.name }}</h1>
-                    <p class="text-sm text-gray-500">Creata il {{ formatDate(activeSession.createdAt) }}</p>
-                </div>
-
-                <!-- Scanner UI -->
-                <div v-show="showScanner" class="card bg-gray-900 p-2">
-                    <div id="reader" class="rounded-lg overflow-hidden"></div>
-                    <button @click="stopScanner" class="w-full btn btn-danger mt-2">Chiudi Scanner</button>
-                </div>
-
-                <!-- Input Form (Only if Open) -->
-                <div v-if="activeSession.status === 'open'" class="card space-y-3 bg-indigo-50 border-indigo-100">
-                    <h3 class="font-bold text-indigo-900">Aggiungi Articolo</h3>
-                    <div class="flex flex-col md:flex-row gap-3">
-                        <button @click="toggleScanner" class="btn bg-gray-800 text-white hover:bg-gray-900 shrink-0"
-                            title="Scansiona Barcode">
-                            <i data-lucide="scan-barcode"></i>
-                        </button>
-                        <input v-model="newItemName" ref="itemInput" type="text" placeholder="Nome / Barcode"
-                            class="input flex-[2] bg-white">
-                        <input v-model.number="newItemQty" type="number" placeholder="Qta" class="input flex-1 bg-white"
-                            @keyup.enter="addItem">
-                        <button @click="addItem" class="btn btn-primary h-[50px] w-full md:w-auto px-6">
+                <!-- New Session -->
+                <div class="space-y-3">
+                    <label class="text-sm font-bold text-slate-700 ml-1">Inizia un nuovo carico/scarico</label>
+                    <div class="flex gap-3">
+                        <input v-model="newSessionName" @keyup.enter="createSession" type="text"
+                            placeholder="Es: Carico Arrivi Pom." class="input shadow-sm">
+                        <button @click="createSession" class="btn btn-primary px-6">
                             <i data-lucide="plus"></i>
                         </button>
                     </div>
                 </div>
 
-                <!-- Item List -->
-                <div class="card p-0 overflow-hidden">
-                    <div class="p-4 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                        <span class="font-semibold text-gray-600">{{ activeSession.items.length }} Articoli</span>
-                        <button v-if="activeSession.status === 'open'" @click="closeActiveSession"
-                            class="btn btn-success text-sm py-1 px-3">
-                            <i data-lucide="check-circle" width="16"></i> Termina e Salva
+                <!-- Session Sections -->
+                <div class="space-y-6">
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <span class="w-5 h-5 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center">
+                            <i data-lucide="layout-list" class="w-3 h-3"></i>
+                        </span>
+                        Sessioni Aperte
+                    </h2>
+                    <div v-if="openSessions.length" class="grid gap-4">
+                        <div v-for="session in openSessions" :key="session.id" @click="openSession(session.id)"
+                            class="card group relative cursor-pointer active:scale-95">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <h3 class="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                                        {{ session.name }}</h3>
+                                    <p class="text-xs text-slate-500 mt-0.5">{{ session.items.length }} movimenti
+                                        registrati</p>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span v-if="session.unsynced"
+                                        class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                                    <i data-lucide="chevron-right"
+                                        class="text-slate-300 group-hover:text-indigo-500 transition-colors"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else
+                        class="py-12 text-center bg-slate-100/50 rounded-3xl border-2 border-dashed border-slate-200 text-slate-400">
+                        <p class="text-sm font-medium">Nessuna sessione attiva.<br>Crea una per iniziare.</p>
+                    </div>
+
+                    <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2 pt-4">
+                        <i data-lucide="history" class="w-5 h-5 text-slate-400"></i>
+                        Storico Chiuso
+                    </h2>
+                    <div class="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                        <div v-for="session in closedSessions" :key="session.id"
+                            class="p-4 flex justify-between items-center hover:bg-slate-50">
+                            <div>
+                                <h4 class="font-semibold text-slate-800">{{ session.name }}</h4>
+                                <p class="text-[10px] text-slate-400 font-medium uppercase mt-0.5">
+                                    {{ formatDate(session.closedAt) }} • {{ session.items.length }} ARTICOLI
+                                </p>
+                            </div>
+                            <button @click="openSession(session.id)"
+                                class="btn btn-secondary py-1.5 px-3 text-xs">Vedi</button>
+                        </div>
+                        <div v-if="!closedSessions.length" class="p-8 text-center text-slate-400 text-sm">Nessuna
+                            sessione chiusa</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: SESSION DETAIL -->
+            <div v-if="currentView === 'session'" class="space-y-6">
+                <nav class="flex items-center justify-between">
+                    <button @click="closeScannerAndBack"
+                        class="p-2 -ml-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                        <i data-lucide="arrow-left"></i>
+                    </button>
+                    <div class="flex gap-2 items-center">
+                        <button v-if="activeSession.status === 'closed'" @click="exportPdf('session')"
+                            class="btn btn-danger py-2">
+                            <i data-lucide="file-text"></i> PDF
+                        </button>
+                        <span
+                            :class="['px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider', activeSession.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600']">
+                            {{ activeSession.status === 'open' ? 'Aperta' : 'Archiviata' }}
+                        </span>
+                    </div>
+                </nav>
+
+                <div
+                    class="bg-indigo-900 text-white p-8 rounded-3xl shadow-xl shadow-indigo-100 relative overflow-hidden">
+                    <div class="relative z-10">
+                        <h1 class="text-2xl font-bold mb-1">{{ activeSession.name }}</h1>
+                        <p class="text-white/60 text-xs font-medium uppercase tracking-widest">{{
+                            formatDate(activeSession.createdAt) }}</p>
+                    </div>
+                    <i data-lucide="layers"
+                        class="absolute right-[-20px] bottom-[-20px] w-48 h-48 text-white/10 rotate-12"></i>
+                </div>
+
+                <!-- Scanner & Form (Only if Open) -->
+                <template v-if="activeSession.status === 'open'">
+                    <div v-show="showScanner" class="card p-2 bg-slate-900 overflow-hidden ring-4 ring-slate-100">
+                        <div id="reader"></div>
+                        <button @click="stopScanner"
+                            class="w-full py-4 text-white font-bold bg-rose-600 hover:bg-rose-700 transition-colors">Interrompi
+                            Scansione</button>
+                    </div>
+
+                    <div class="card space-y-5 border-indigo-100 bg-indigo-50/30">
+                        <!-- Mode Toggle: Carico / Scarico -->
+                        <div class="mode-toggle">
+                            <button @click="newItemType = 'carico'"
+                                :class="['mode-btn', newItemType === 'carico' ? 'active carico' : 'text-slate-500']">
+                                <i data-lucide="arrow-down-left" class="inline w-4 h-4 mr-1"></i> Carico
+                            </button>
+                            <button @click="newItemType = 'scarico'"
+                                :class="['mode-btn', newItemType === 'scarico' ? 'active scarico' : 'text-slate-500']">
+                                <i data-lucide="arrow-up-right" class="inline w-4 h-4 mr-1"></i> Scarico
+                            </button>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button @click="toggleScanner"
+                                class="btn bg-slate-800 text-white hover:bg-slate-900 shrink-0 shadow-lg">
+                                <i data-lucide="camera"></i>
+                            </button>
+                            <input v-model="newItemName" ref="itemInput" type="text" placeholder="Codice o Nome..."
+                                class="input bg-white">
+                        </div>
+                        <div class="flex gap-2">
+                            <input v-model.number="newItemQty" type="number" placeholder="Quantità"
+                                class="input bg-white shrink-0 w-32" @keyup.enter="addItem">
+                            <button @click="addItem" class="btn btn-primary w-full shadow-lg shadow-indigo-200">
+                                <i data-lucide="plus-circle"></i> Aggiungi Registrazione
+                            </button>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Moves List -->
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between px-1">
+                        <h3 class="font-bold text-slate-800 text-lg">Movimenti ({{ activeSession.items.length }})</h3>
+                        <button v-if="activeSession.status === 'open' && activeSession.items.length > 0"
+                            @click="closeActiveSession"
+                            class="text-xs font-bold text-emerald-600 hover:text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100">
+                            Chiudi Sessione 🔒
                         </button>
                     </div>
-                    <ul class="divide-y divide-gray-100">
-                        <li v-for="(item, idx) in activeSession.items" :key="idx"
-                            class="p-4 flex justify-between items-center hover:bg-gray-50">
-                            <span class="font-medium text-gray-800">{{ item.name }}</span>
-                            <div class="flex items-center gap-3">
-                                <span class="bg-gray-100 text-gray-800 font-mono font-bold px-3 py-1 rounded">{{
-                                    item.quantity }}</span>
+
+                    <div class="space-y-3">
+                        <div v-for="(item, idx) in sortedItems" :key="idx"
+                            class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                            <div
+                                :class="['w-10 h-10 rounded-xl flex items-center justify-center shrink-0', item.type === 'carico' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600']">
+                                <i :data-lucide="item.type === 'carico' ? 'arrow-down-left' : 'arrow-up-right'"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-bold text-slate-900 line-clamp-1 capitalize">{{ item.name }}</p>
+                                <p class="text-[10px] text-slate-500 font-bold uppercase">{{ item.type }}</p>
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <span
+                                    :class="['font-mono font-bold text-lg', item.type === 'carico' ? 'text-emerald-700' : 'text-rose-700']">
+                                    {{ item.type === 'carico' ? '+' : '-' }}{{ item.quantity }}
+                                </span>
                                 <button v-if="activeSession.status === 'open'" @click="removeItem(idx)"
-                                    class="text-red-400 hover:text-red-600">
-                                    <i data-lucide="trash-2" width="18"></i>
+                                    class="p-2 text-slate-300 hover:text-rose-500">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
                                 </button>
                             </div>
-                        </li>
-                        <li v-if="activeSession.items.length === 0" class="p-8 text-center text-gray-400">
-                            Nessun articolo inserito.
-                        </li>
-                    </ul>
+                        </div>
+                        <div v-if="!activeSession.items.length" class="py-12 text-center text-slate-400 italic text-sm">
+                            Nessun movimento registrato.</div>
+                    </div>
                 </div>
             </div>
 
             <!-- VIEW: INVENTORY -->
             <div v-if="currentView === 'inventory'" class="space-y-6">
                 <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-4">
-                        <button @click="currentView = 'dashboard'"
-                            class="btn btn-ghost rounded-full w-10 h-10 p-0 flex items-center justify-center">
-                            <i data-lucide="arrow-left"></i>
-                        </button>
-                        <h1 class="text-2xl font-bold text-gray-800">Giacenza Totale</h1>
-                    </div>
-                    <button @click="exportPdf('inventory')"
-                        class="btn btn-ghost text-red-600 bg-red-50 hover:bg-red-100">
-                        <i data-lucide="file-down"></i> Export PDF
+                    <button @click="currentView = 'dashboard'" class="p-2 text-slate-500 hover:bg-slate-100 rounded-xl">
+                        <i data-lucide="arrow-left"></i>
+                    </button>
+                    <button @click="exportPdf('inventory')" class="btn btn-secondary text-sm py-2">
+                        <i data-lucide="download" class="w-4 h-4"></i> Report PDF
                     </button>
                 </div>
 
-                <div class="relative">
-                    <input v-model="searchQuery" type="text" placeholder="Cerca prodotto..." class="input pl-11">
-                    <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-                        width="20"></i>
+                <div class="space-y-1">
+                    <h1 class="text-2xl font-extrabold text-slate-900">Giacenza Magazzino</h1>
+                    <p class="text-slate-500 text-sm">Calcolo netto da tutte le sessioni chiuse</p>
                 </div>
 
-                <div class="card p-0 overflow-hidden">
-                    <table class="w-full text-left">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="p-4 font-semibold text-gray-600">Prodotto</th>
-                                <th class="p-4 font-semibold text-gray-600 text-right">Totale</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100">
-                            <tr v-for="item in filteredInventory" :key="item.name" class="hover:bg-gray-50">
-                                <td class="p-4 font-medium text-gray-800">{{ item.name }}</td>
-                                <td class="p-4 text-right font-bold text-indigo-600">{{ item.quantity }}</td>
-                            </tr>
-                            <tr v-if="filteredInventory.length === 0">
-                                <td colspan="2" class="p-8 text-center text-gray-400">
-                                    {{ searchQuery ? 'Nessun prodotto trovato.' : 'Nessun dato in magazzino.' }}
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                <div class="relative group">
+                    <input v-model="searchQuery" type="text" placeholder="Nome prodotto..."
+                        class="input pl-11 bg-white shadow-sm ring-4 ring-slate-100">
+                    <i data-lucide="search"
+                        class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors"
+                        width="18"></i>
+                </div>
+
+                <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xl shadow-slate-100">
+                    <div class="max-h-[60vh] overflow-y-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50 sticky top-0 z-10">
+                                <tr>
+                                    <th class="p-5 font-bold text-slate-400 text-[11px] uppercase tracking-wider">
+                                        Prodotto</th>
+                                    <th
+                                        class="p-5 font-bold text-slate-400 text-[11px] uppercase tracking-wider text-right">
+                                        Netto</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                <tr v-for="item in filteredInventory" :key="item.name" class="hover:bg-slate-50/50">
+                                    <td class="p-5">
+                                        <p class="font-bold text-slate-800 capitalize">{{ item.name }}</p>
+                                        <div class="flex gap-2 mt-1">
+                                            <span
+                                                class="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase">C:
+                                                {{ item.carico }}</span>
+                                            <span
+                                                class="text-[9px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded uppercase">S:
+                                                {{ item.scarico }}</span>
+                                        </div>
+                                    </td>
+                                    <td class="p-5 text-right">
+                                        <span
+                                            :class="['text-xl font-black font-mono', item.quantity >= 0 ? 'text-indigo-600' : 'text-rose-600']">
+                                            {{ item.quantity }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr v-if="!filteredInventory.length">
+                                    <td colspan="2" class="p-12 text-center text-slate-400 font-medium">Nessun dato
+                                        disponibile</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
         </main>
     </div>
 
-    <!-- Firebase SDKs -->
+    <!-- Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, doc, setDoc, getDocs, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, doc, setDoc, Timestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         // CONFIGURE FIREBASE HERE
         const firebaseConfig = {
-            // Replace with your keys
             apiKey: "YOUR_API_KEY_HERE",
             projectId: "YOUR_PROJECT_ID_HERE"
         };
 
-        // Initialize Firebase specific logic if config is present
         let db = null;
         try {
             if (firebaseConfig.apiKey !== "YOUR_API_KEY_HERE") {
                 const app = initializeApp(firebaseConfig);
                 db = getFirestore(app);
-                console.log("Firebase initialized");
             }
         } catch (e) {
             console.error("Firebase init failed", e);
@@ -300,8 +389,7 @@
 
         createApp({
             setup() {
-                // State
-                const currentView = ref('dashboard'); // dashboard, session, inventory
+                const currentView = ref('dashboard');
                 const isOnline = ref(navigator.onLine);
                 const sessions = ref([]);
                 const activeSessionId = ref(null);
@@ -309,60 +397,55 @@
 
                 const newItemName = ref('');
                 const newItemQty = ref('');
+                const newItemType = ref('carico');
                 const searchQuery = ref('');
-                const itemInput = ref(null); // Ref for focus
+                const itemInput = ref(null);
 
-                // Scanner State
                 const showScanner = ref(false);
-                let html5QrcodeScanner = null;
+                let scannerInstance = null;
 
-                // Load from LocalStorage
                 onMounted(() => {
-                    const saved = localStorage.getItem('cm_sessions');
+                    const saved = localStorage.getItem('cm_pro_sessions');
                     if (saved) {
-                        try {
-                            // Deserialize dates properly would be better, but strings OK for simple display
-                            sessions.value = JSON.parse(saved);
-                        } catch (e) { console.error(e) }
+                        try { sessions.value = JSON.parse(saved); } catch (e) { }
                     }
-
                     window.addEventListener('online', () => { isOnline.value = true; syncData(); });
                     window.addEventListener('offline', () => isOnline.value = false);
-
-                    // Lucide icons
                     nextTick(() => lucide.createIcons());
                 });
 
-                // Persistence Watcher
                 watch(sessions, (newVal) => {
-                    localStorage.setItem('cm_sessions', JSON.stringify(newVal));
-                    // Trigger sync if online
+                    localStorage.setItem('cm_pro_sessions', JSON.stringify(newVal));
                     if (isOnline.value) syncData();
-                    // Re-render icons on DOM updates
                     setTimeout(() => lucide.createIcons(), 100);
                 }, { deep: true });
 
-                watch(currentView, () => {
-                    if (currentView.value !== 'session') stopScanner();
+                watch(currentView, (v) => {
+                    if (v !== 'session') stopScanner();
                     setTimeout(() => lucide.createIcons(), 50);
                 });
 
-                // Computed
-                const openSessions = computed(() => sessions.value.filter(s => s.status === 'open').sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)));
-                const closedSessions = computed(() => sessions.value.filter(s => s.status === 'closed').sort((a, b) => new Date(b.closedAt) - new Date(a.closedAt)));
-
-                const activeSession = computed(() => sessions.value.find(s => s.id === activeSessionId.value) || {});
+                // Helpers
+                const activeSession = computed(() => sessions.value.find(s => s.id === activeSessionId.value) || { items: [] });
+                const sortedItems = computed(() => [...activeSession.value.items].reverse());
 
                 const inventory = computed(() => {
                     const map = new Map();
-                    closedSessions.value.forEach(sess => {
+                    sessions.value.filter(s => s.status === 'closed').forEach(sess => {
                         sess.items.forEach(item => {
                             const k = item.name.toLowerCase().trim();
-                            const curr = map.get(k) || { name: item.name, quantity: 0 };
-                            map.set(k, { ...curr, quantity: curr.quantity + item.quantity });
+                            const curr = map.get(k) || { name: item.name, quantity: 0, carico: 0, scarico: 0 };
+                            if (item.type === 'carico') {
+                                curr.quantity += item.quantity;
+                                curr.carico += item.quantity;
+                            } else {
+                                curr.quantity -= item.quantity;
+                                curr.scarico += item.quantity;
+                            }
+                            map.set(k, curr);
                         });
                     });
-                    return Array.from(map.values());
+                    return Array.from(map.values()).sort((a, b) => b.quantity - a.quantity);
                 });
 
                 const filteredInventory = computed(() => {
@@ -370,20 +453,20 @@
                     return inventory.value.filter(i => i.name.toLowerCase().includes(searchQuery.value.toLowerCase()));
                 });
 
-                // Actions
+                // Session Logic
                 const createSession = () => {
-                    const name = newSessionName.value.trim() || `Carico ${new Date().toLocaleDateString()}`;
-                    const newSess = {
-                        id: crypto.randomUUID(),
-                        name,
+                    if (!newSessionName.value.trim()) return;
+                    const id = crypto.randomUUID();
+                    sessions.value.push({
+                        id,
+                        name: newSessionName.value.trim(),
                         createdAt: new Date().toISOString(),
                         status: 'open',
                         items: [],
-                        unsynced: true // Mark as dirty
-                    };
-                    sessions.value.push(newSess);
+                        unsynced: true
+                    });
                     newSessionName.value = '';
-                    openSession(newSess.id);
+                    openSession(id);
                 };
 
                 const openSession = (id) => {
@@ -394,15 +477,16 @@
                 const addItem = () => {
                     if (!newItemName.value || !newItemQty.value) return;
                     const session = sessions.value.find(s => s.id === activeSessionId.value);
-                    if (session) {
+                    if (session && session.status === 'open') {
                         session.items.push({
-                            name: newItemName.value,
-                            quantity: parseInt(newItemQty.value)
+                            name: newItemName.value.trim(),
+                            quantity: parseInt(newItemQty.value),
+                            type: newItemType.value,
+                            at: new Date().toISOString()
                         });
-                        session.unsynced = true; // Mark modified
+                        session.unsynced = true;
                         newItemName.value = '';
                         newItemQty.value = '';
-                        // Keep focus
                         nextTick(() => itemInput.value?.focus());
                     }
                 };
@@ -416,7 +500,7 @@
                 };
 
                 const closeActiveSession = () => {
-                    if (!confirm("Confermi di voler chiudere la sessione?\nI prodotti verranno aggiunti alla giacenza totale.")) return;
+                    if (!confirm("Chiudere la sessione permanente?")) return;
                     const session = sessions.value.find(s => s.id === activeSessionId.value);
                     if (session) {
                         session.status = 'closed';
@@ -429,107 +513,97 @@
                 const closeScannerAndBack = () => {
                     stopScanner();
                     currentView.value = 'dashboard';
-                }
+                };
 
-                // SCANNER LOGIC
+                // Scanner (BACK CAMERA ONLY)
                 const toggleScanner = () => {
-                    if (showScanner.value) {
-                        stopScanner();
-                    } else {
-                        showScanner.value = true;
-                        nextTick(() => {
-                            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-                            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
-                        });
-                    }
-                };
-
-                const onScanSuccess = (decodedText) => {
-                    newItemName.value = decodedText;
-                    // Play beep ?
-                    stopScanner();
-                    nextTick(() => itemInput.value?.focus());
-                };
-
-                const onScanFailure = (error) => {
-                    // console.warn(error);
+                    if (showScanner.value) return stopScanner();
+                    showScanner.value = true;
+                    nextTick(() => {
+                        // Use Environment facing mode for back camera
+                        scannerInstance = new Html5Qrcode("reader");
+                        const config = { fps: 15, qrbox: { width: 250, height: 150 } };
+                        scannerInstance.start({ facingMode: "environment" }, config, (decoded) => {
+                            newItemName.value = decoded;
+                            stopScanner();
+                            nextTick(() => itemInput.value?.focus());
+                        }, (err) => { });
+                    });
                 };
 
                 const stopScanner = () => {
-                    showScanner.value = false;
-                    if (html5QrcodeScanner) {
-                        html5QrcodeScanner.clear().catch(error => console.error("Failed to clear html5QrcodeScanner. ", error));
-                        html5QrcodeScanner = null;
+                    if (scannerInstance) {
+                        scannerInstance.stop().then(() => {
+                            showScanner.value = false;
+                            scannerInstance = null;
+                        }).catch(() => {
+                            showScanner.value = false;
+                            scannerInstance = null;
+                        });
+                    } else {
+                        showScanner.value = false;
                     }
                 };
 
-                // PDF EXPORT
+                // PDF
                 const exportPdf = (type) => {
                     const { jsPDF } = window.jspdf;
                     const doc = new jsPDF();
+                    doc.setFont("helvetica", "bold");
 
                     if (type === 'inventory') {
-                        doc.text("Giacenza Totale Magazzino", 14, 20);
+                        doc.setFontSize(20);
+                        doc.text("Report Giacenza Magazzino", 15, 20);
                         doc.setFontSize(10);
-                        doc.text(`Generato il: ${new Date().toLocaleString()}`, 14, 28);
+                        doc.setFont("helvetica", "normal");
+                        doc.text(`Data estrazione: ${new Date().toLocaleString()}`, 15, 28);
 
-                        const tableData = filteredInventory.value.map(item => [item.name, item.quantity]);
-
+                        const rows = inventory.value.map(i => [i.name, i.carico, i.scarico, i.quantity]);
                         doc.autoTable({
                             startY: 35,
-                            head: [['Prodotto', 'Quantità']],
-                            body: tableData,
+                            head: [['Prodotto', 'Carico (+)', 'Scarico (-)', 'Tot. Netto']],
+                            body: rows,
+                            headStyles: { fillColor: [99, 102, 241] }
                         });
-                        doc.save(`Giacenza_${new Date().toISOString().slice(0, 10)}.pdf`);
-                    } else if (type === 'session') {
-                        const sess = activeSession.value;
-                        doc.text(`Sessione: ${sess.name}`, 14, 20);
+                    } else {
+                        const s = activeSession.value;
+                        doc.setFontSize(20);
+                        doc.text(`Report Sessione: ${s.name}`, 15, 20);
                         doc.setFontSize(10);
-                        doc.text(`Data: ${formatDate(sess.createdAt)}`, 14, 28);
+                        doc.setFont("helvetica", "normal");
+                        doc.text(`Creato il: ${new Date(s.createdAt).toLocaleString()} | Chiuso il: ${new Date(s.closedAt).toLocaleString()}`, 15, 28);
 
-                        const tableData = sess.items.map(item => [item.name, item.quantity]);
-
+                        const rows = s.items.map(i => [i.name, i.type.toUpperCase(), i.quantity]);
                         doc.autoTable({
                             startY: 35,
-                            head: [['Prodotto', 'Quantità']],
-                            body: tableData,
+                            head: [['Prodotto', 'Operazione', 'Quantità']],
+                            body: rows,
+                            headStyles: { fillColor: [79, 70, 229] }
                         });
-                        doc.save(`Sessione_${sess.name}.pdf`);
                     }
+                    doc.save(`Report_${new Date().toISOString().slice(0, 10)}.pdf`);
                 };
 
-                const formatDate = (iso) => {
-                    if (!iso) return '';
-                    return new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-                };
+                const formatDate = (iso) => iso ? new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 
-                // SYNC LOGIC
                 const syncData = async () => {
                     if (!db || !isOnline.value) return;
-
-                    const dirtySessions = sessions.value.filter(s => s.unsynced);
-                    if (dirtySessions.length === 0) return;
-
-                    console.log(`Syncing ${dirtySessions.length} sessions...`);
-
-                    for (const sess of dirtySessions) {
+                    const dirty = sessions.value.filter(s => s.unsynced);
+                    for (const s of dirty) {
                         try {
-                            // Deep copy to remove internal flags if needed, or structuredClone
-                            // We save everything to Firestore
-                            const docRef = doc(collection(db, "sessions"), sess.id);
-                            await setDoc(docRef, { ...sess, unsynced: false, lastSync: Timestamp.now() }, { merge: true });
-
-                            // Update local state to clean
-                            sess.unsynced = false;
-                        } catch (e) {
-                            console.error("Sync failed for", sess.id, e);
-                        }
+                            const ref = doc(getFirestore(), "sessions", s.id);
+                            await setDoc(ref, { ...s, unsynced: false, syncedAt: Timestamp.now() }, { merge: true });
+                            s.unsynced = false;
+                        } catch (e) { }
                     }
                 };
 
+                const openSessions = computed(() => sessions.value.filter(s => s.status === 'open'));
+                const closedSessions = computed(() => sessions.value.filter(s => s.status === 'closed'));
+
                 return {
-                    currentView, isOnline, newSessionName, newItemName, newItemQty, searchQuery, itemInput, showScanner,
-                    openSessions, closedSessions, activeSession, filteredInventory,
+                    currentView, isOnline, newSessionName, newItemName, newItemQty, newItemType, searchQuery, itemInput, showScanner,
+                    openSessions, closedSessions, activeSession, sortedItems, filteredInventory,
                     createSession, openSession, addItem, removeItem, closeActiveSession, formatDate, closeScannerAndBack,
                     toggleScanner, stopScanner, exportPdf
                 };
