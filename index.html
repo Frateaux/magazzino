@@ -535,6 +535,15 @@
 
                     window.addEventListener('online', () => { isOnline.value = true; syncAll(); });
                     window.addEventListener('offline', () => isOnline.value = false);
+
+                    // Android/Browser Back Button Navigation
+                    window.addEventListener('popstate', (event) => {
+                        if (currentView.value !== 'dashboard') {
+                            currentView.value = 'dashboard';
+                            stopScanner();
+                        }
+                    });
+
                     nextTick(() => { lucide.createIcons(); if (isOnline.value) syncAll(); });
                 });
 
@@ -544,7 +553,12 @@
                     nextTick(() => lucide.createIcons());
                 }, { deep: true });
 
-                watch(currentView, () => nextTick(() => lucide.createIcons()));
+                watch(currentView, (newView) => {
+                    if (newView !== 'dashboard') {
+                        history.pushState({ view: newView }, '');
+                    }
+                    nextTick(() => lucide.createIcons());
+                });
 
                 // --- COMPUTED ---
                 const activeSession = computed(() => sessions.value.find(s => s.id === activeSessionId.value) || { items: [] });
@@ -769,13 +783,32 @@
                 const generateProductPDF = (barcode) => {
                     const prod = productRegistry.value[barcode];
                     const hist = [];
+                    let totC = 0;
+                    let totS = 0;
+
                     sessions.value.filter(s => s.status === 'closed').forEach(s => {
                         s.items.filter(i => i.barcode === barcode).forEach(i => {
-                            hist.push([new Date(s.createdAt).toLocaleDateString(), s.type.toUpperCase(), s.type === 'carico' ? `+${i.quantity}` : `-${i.quantity}`, i.quantity * i.unitsPerBox, i.notes || '-']);
+                            const pz = i.quantity * i.unitsPerBox;
+                            if (s.type === 'carico') totC += pz;
+                            else totS += pz;
+
+                            hist.push([
+                                new Date(s.createdAt).toLocaleDateString(),
+                                s.type.toUpperCase(),
+                                s.type === 'carico' ? `+${i.quantity}` : `-${i.quantity}`,
+                                pz,
+                                i.notes || '-'
+                            ]);
                         });
                     });
-                    const stock = getNetStock(barcode);
-                    generatePDF(`Scheda Articolo: ${prod.name} (Stock: ${stock} PZ)`, ["Data", "Tipo", "Colli", "Pezzi", "Note"], hist, `DiaTrack_${prod.name}.pdf`);
+
+                    // Add Summary Row
+                    hist.push([{ content: 'RIEPILOGO FINALE', colSpan: 3, styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } }, { content: '', styles: { fillColor: [241, 245, 249] } }, { content: '', styles: { fillColor: [241, 245, 249] } }]);
+                    hist.push([{ content: 'Totale Caricato (PZ)', colSpan: 3, styles: { fontStyle: 'bold' } }, totC, '-']);
+                    hist.push([{ content: 'Totale Scaricato (PZ)', colSpan: 3, styles: { fontStyle: 'bold' } }, totS, '-']);
+                    hist.push([{ content: 'GIACENZA ATTUALE (PZ)', colSpan: 3, styles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' } }, { content: totC - totS, styles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold' } }, { content: '', styles: { fillColor: [79, 70, 229] } }]);
+
+                    generatePDF(`Scheda Articolo: ${prod.name}`, ["Data", "Tipo", "Colli", "Pezzi", "Note"], hist, `DiaTrack_${prod.name}.pdf`);
                 };
 
                 const syncAll = async () => {
