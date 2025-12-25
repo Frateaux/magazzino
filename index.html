@@ -94,8 +94,12 @@
             <template v-else>
                 <!-- Online/Offline Status -->
                 <div
-                    :class="['py-2 text-center text-[10px] font-black tracking-widest uppercase text-white transition-colors duration-500', isOnline ? 'bg-indigo-600' : 'bg-rose-500']">
-                    {{ isOnline ? '● DiaTrack Cloud Active' : '○ DiaTrack Offline Mode' }}
+                    :class="['py-2 px-4 flex justify-between items-center text-[10px] font-black tracking-widest uppercase text-white transition-colors duration-500', isOnline ? 'bg-indigo-600' : 'bg-rose-500']">
+                    <span>{{ isOnline ? '● DiaTrack Cloud Active' : '○ DiaTrack Offline Mode' }}</span>
+                    <span v-if="isSyncing" class="flex items-center gap-2">
+                        <i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Sincronizzazione...
+                    </span>
+                    <span v-else-if="isOnline" class="opacity-50">Sincronizzato</span>
                 </div>
 
                 <div class="flex-1 p-4 md:p-8 space-y-8">
@@ -119,7 +123,8 @@
                                 class="bg-emerald-50 border-emerald-100 text-emerald-700 hover:border-emerald-500 flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 transition-all active:scale-95 text-center gap-3">
                                 <div
                                     class="w-14 h-14 bg-emerald-500 text-white rounded-3xl flex items-center justify-center shadow-lg">
-                                    <i data-lucide="package-plus" class="w-7 h-7"></i></div>
+                                    <i data-lucide="package-plus" class="w-7 h-7"></i>
+                                </div>
                                 <span class="font-black text-sm uppercase">Carico</span>
                             </button>
 
@@ -127,7 +132,8 @@
                                 class="bg-rose-50 border-rose-100 text-rose-700 hover:border-rose-500 flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 transition-all active:scale-95 text-center gap-3">
                                 <div
                                     class="w-14 h-14 bg-rose-500 text-white rounded-3xl flex items-center justify-center shadow-lg">
-                                    <i data-lucide="package-minus" class="w-7 h-7"></i></div>
+                                    <i data-lucide="package-minus" class="w-7 h-7"></i>
+                                </div>
                                 <span class="font-black text-sm uppercase">Scarico</span>
                             </button>
 
@@ -135,7 +141,8 @@
                                 class="bg-indigo-50 border-indigo-100 text-indigo-700 hover:border-indigo-500 flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 transition-all active:scale-95 text-center gap-3">
                                 <div
                                     class="w-14 h-14 bg-indigo-500 text-white rounded-3xl flex items-center justify-center shadow-lg">
-                                    <i data-lucide="boxes" class="w-7 h-7"></i></div>
+                                    <i data-lucide="boxes" class="w-7 h-7"></i>
+                                </div>
                                 <span class="font-black text-sm uppercase">Giacenza</span>
                             </button>
 
@@ -143,7 +150,8 @@
                                 class="bg-slate-50 border-slate-200 text-slate-700 hover:border-slate-500 flex flex-col items-center justify-center p-6 rounded-[2.5rem] border-2 transition-all active:scale-95 text-center gap-3">
                                 <div
                                     class="w-14 h-14 bg-slate-800 text-white rounded-3xl flex items-center justify-center shadow-lg">
-                                    <i data-lucide="scroll-text" class="w-7 h-7"></i></div>
+                                    <i data-lucide="scroll-text" class="w-7 h-7"></i>
+                                </div>
                                 <span class="font-black text-sm uppercase">Report PDF</span>
                             </button>
                         </div>
@@ -474,6 +482,7 @@
                 const fatalError = ref(null);
                 const currentView = ref('dashboard');
                 const isOnline = ref(navigator.onLine);
+                const isSyncing = ref(false);
                 const sessions = ref([]);
                 const productRegistry = ref({});
                 const activeSessionId = ref(null);
@@ -524,12 +533,17 @@
                     if (s) sessions.value = JSON.parse(s);
                     if (r) productRegistry.value = JSON.parse(r);
 
-                    window.addEventListener('online', () => isOnline.value = true);
+                    window.addEventListener('online', () => { isOnline.value = true; syncAll(); });
                     window.addEventListener('offline', () => isOnline.value = false);
-                    nextTick(() => lucide.createIcons());
+                    nextTick(() => { lucide.createIcons(); if (isOnline.value) syncAll(); });
                 });
 
-                watch([sessions, productRegistry], saveState, { deep: true });
+                watch([sessions, productRegistry], () => {
+                    saveState();
+                    if (isOnline.value) syncAll();
+                    nextTick(() => lucide.createIcons());
+                }, { deep: true });
+
                 watch(currentView, () => nextTick(() => lucide.createIcons()));
 
                 // --- COMPUTED ---
@@ -576,7 +590,7 @@
                     const name = prompt(`Identificativo Sessione ${type.toUpperCase()}:`, `${label} - ${new Date().toLocaleDateString()}`);
                     if (!name) return;
                     const id = getUUID();
-                    sessions.value.push({ id, type, name, status: 'open', items: [], createdAt: new Date().toISOString() });
+                    sessions.value.push({ id, type, name, status: 'open', items: [], createdAt: new Date().toISOString(), unsynced: true });
                     activeSessionId.value = id;
                     currentView.value = 'session';
                 };
@@ -621,16 +635,21 @@
                         notes: newItemNotes.value.trim()
                     });
 
+                    activeSession.value.unsynced = true;
                     newItemBarcode.value = ''; newItemQty.value = null; newItemNotes.value = '';
                     nextTick(() => document.querySelector('input[placeholder*="Scansiona"]')?.focus());
                 };
 
-                const removeItem = (i) => activeSession.value.items.splice(activeSession.value.items.length - 1 - i, 1);
+                const removeItem = (i) => {
+                    activeSession.value.items.splice(activeSession.value.items.length - 1 - i, 1);
+                    activeSession.value.unsynced = true;
+                };
 
                 const closeActiveSession = () => {
                     if (!confirm("Sei sicuro di voler finalizzare questa sessione?\nI dati verranno aggiunti permanentemente allo stock.")) return;
                     activeSession.value.status = 'closed';
                     activeSession.value.closedAt = new Date().toISOString();
+                    activeSession.value.unsynced = true;
                     currentView.value = 'dashboard';
                 };
 
@@ -732,15 +751,40 @@
                     generatePDF(`Scheda Articolo: ${prod.name} (Stock: ${stock} PZ)`, ["Data", "Tipo", "Colli", "Pezzi", "Note"], hist, `DiaTrack_${prod.name}.pdf`);
                 };
 
+                const syncAll = async () => {
+                    if (!db || !isOnline.value || isSyncing.value) return;
+                    isSyncing.value = true;
+                    try {
+                        // Registry Sync (Chunked batches if needed)
+                        const registryKeys = Object.keys(productRegistry.value);
+                        for (let i = 0; i < registryKeys.length; i += 500) {
+                            const batch = writeBatch(db);
+                            const chunk = registryKeys.slice(i, i + 500);
+                            chunk.forEach(k => {
+                                batch.set(doc(db, "registry_v2", k), productRegistry.value[k], { merge: true });
+                            });
+                            await batch.commit();
+                        }
+
+                        // Sessions Sync
+                        for (const s of sessions.value.filter(x => x.unsynced)) {
+                            const { unsynced, ...data } = s;
+                            await setDoc(doc(db, "sessions_v2", s.id), data, { merge: true });
+                            s.unsynced = false;
+                        }
+                    } catch (e) { console.error("Sync Error:", e); }
+                    finally { isSyncing.value = false; }
+                };
+
                 return {
-                    fatalError, currentView, isOnline, newItemBarcode, newItemQty, newItemNotes, searchQuery, qtyInput, showScanner,
+                    fatalError, currentView, isOnline, isSyncing, newItemBarcode, newItemQty, newItemNotes, searchQuery, qtyInput, showScanner,
                     showRegistryModal, regName, regUnits, sessions, activeSessionId, activeSession, sortedItems, filteredInventory,
                     newItemData, availableDates, registeredProducts, sortedSessions,
                     startSession, openSession, handleBarcodeEntry, saveRegistry, cancelRegistry, addItem, removeItem, closeActiveSession,
                     formatDate: (d) => d ? new Date(d).toLocaleString('it-IT') : '',
                     formatDateShort: (d) => d ? new Date(d).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }) : '',
                     getNetStock, closeScannerAndBack, toggleScanner, stopScanner,
-                    generateInventoryPDF, generateSessionPDF, generateDailyReport, generateProductPDF
+                    generateInventoryPDF, generateSessionPDF, generateDailyReport, generateProductPDF, syncAll
                 };
             }
         });
