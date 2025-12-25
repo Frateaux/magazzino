@@ -11,6 +11,12 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <!-- Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Barcode Scanner -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- PDF Export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -54,6 +60,10 @@
         .input {
             @apply px-4 py-3 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full;
         }
+
+        #reader {
+            width: 100%;
+        }
     </style>
 </head>
 
@@ -66,7 +76,7 @@
                 <i data-lucide="wifi"></i> Online - Sincronizzazione Attiva
             </span>
             <span v-else class="flex items-center justify-center gap-2">
-                <i data-lucide="wifi-off"></i> Offline - Modifiche Salvate in Locale
+                <i data-lucide="wifi-off"></i> Offline - Modifiche Salvate in Locale (Cache)
             </span>
         </div>
 
@@ -76,12 +86,15 @@
             <!-- VIEW: DASHBOARD -->
             <div v-if="currentView === 'dashboard'" class="space-y-6">
                 <!-- Header -->
-                <div class="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm">
+                <div
+                    class="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-4 rounded-xl shadow-sm">
                     <h1 class="text-2xl font-bold text-gray-800">📦 Carico Merci</h1>
-                    <button @click="currentView = 'inventory'"
-                        class="btn bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
-                        <i data-lucide="package"></i> Giacenza Totale
-                    </button>
+                    <div class="flex gap-2">
+                        <button @click="currentView = 'inventory'"
+                            class="btn bg-indigo-50 text-indigo-600 hover:bg-indigo-100">
+                            <i data-lucide="package"></i> Giacenza Totale
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Create Session -->
@@ -138,13 +151,19 @@
             <!-- VIEW: SESSION DETAIL -->
             <div v-if="currentView === 'session'" class="space-y-4">
                 <div class="flex items-center justify-between">
-                    <button @click="currentView = 'dashboard'" class="btn btn-ghost -ml-2">
+                    <button @click="closeScannerAndBack" class="btn btn-ghost -ml-2">
                         <i data-lucide="arrow-left"></i> Indietro
                     </button>
-                    <span
-                        :class="['px-3 py-1 rounded-full text-sm font-bold', activeSession.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600']">
-                        {{ activeSession.status === 'open' ? '🟢 In Corso' : '🔒 Chiusa' }}
-                    </span>
+                    <div class="flex gap-2">
+                        <button v-if="activeSession.status === 'closed'" @click="exportPdf('session')"
+                            class="btn btn-ghost text-red-600 bg-red-50 hover:bg-red-100">
+                            <i data-lucide="file-down"></i> PDF
+                        </button>
+                        <span
+                            :class="['px-3 py-1 rounded-full text-sm font-bold flex items-center', activeSession.status === 'open' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600']">
+                            {{ activeSession.status === 'open' ? '🟢 In Corso' : '🔒 Chiusa' }}
+                        </span>
+                    </div>
                 </div>
 
                 <div class="card">
@@ -152,12 +171,22 @@
                     <p class="text-sm text-gray-500">Creata il {{ formatDate(activeSession.createdAt) }}</p>
                 </div>
 
+                <!-- Scanner UI -->
+                <div v-show="showScanner" class="card bg-gray-900 p-2">
+                    <div id="reader" class="rounded-lg overflow-hidden"></div>
+                    <button @click="stopScanner" class="w-full btn btn-danger mt-2">Chiudi Scanner</button>
+                </div>
+
                 <!-- Input Form (Only if Open) -->
                 <div v-if="activeSession.status === 'open'" class="card space-y-3 bg-indigo-50 border-indigo-100">
                     <h3 class="font-bold text-indigo-900">Aggiungi Articolo</h3>
                     <div class="flex flex-col md:flex-row gap-3">
-                        <input v-model="newItemName" ref="itemInput" type="text"
-                            placeholder="Nome Prodotto (es. Scatola A)" class="input flex-[2] bg-white">
+                        <button @click="toggleScanner" class="btn bg-gray-800 text-white hover:bg-gray-900 shrink-0"
+                            title="Scansiona Barcode">
+                            <i data-lucide="scan-barcode"></i>
+                        </button>
+                        <input v-model="newItemName" ref="itemInput" type="text" placeholder="Nome / Barcode"
+                            class="input flex-[2] bg-white">
                         <input v-model.number="newItemQty" type="number" placeholder="Qta" class="input flex-1 bg-white"
                             @keyup.enter="addItem">
                         <button @click="addItem" class="btn btn-primary h-[50px] w-full md:w-auto px-6">
@@ -197,12 +226,18 @@
 
             <!-- VIEW: INVENTORY -->
             <div v-if="currentView === 'inventory'" class="space-y-6">
-                <div class="flex items-center gap-4">
-                    <button @click="currentView = 'dashboard'"
-                        class="btn btn-ghost rounded-full w-10 h-10 p-0 flex items-center justify-center">
-                        <i data-lucide="arrow-left"></i>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <button @click="currentView = 'dashboard'"
+                            class="btn btn-ghost rounded-full w-10 h-10 p-0 flex items-center justify-center">
+                            <i data-lucide="arrow-left"></i>
+                        </button>
+                        <h1 class="text-2xl font-bold text-gray-800">Giacenza Totale</h1>
+                    </div>
+                    <button @click="exportPdf('inventory')"
+                        class="btn btn-ghost text-red-600 bg-red-50 hover:bg-red-100">
+                        <i data-lucide="file-down"></i> Export PDF
                     </button>
-                    <h1 class="text-2xl font-bold text-gray-800">Giacenza Totale</h1>
                 </div>
 
                 <div class="relative">
@@ -277,6 +312,10 @@
                 const searchQuery = ref('');
                 const itemInput = ref(null); // Ref for focus
 
+                // Scanner State
+                const showScanner = ref(false);
+                let html5QrcodeScanner = null;
+
                 // Load from LocalStorage
                 onMounted(() => {
                     const saved = localStorage.getItem('cm_sessions');
@@ -304,6 +343,7 @@
                 }, { deep: true });
 
                 watch(currentView, () => {
+                    if (currentView.value !== 'session') stopScanner();
                     setTimeout(() => lucide.createIcons(), 50);
                 });
 
@@ -386,6 +426,78 @@
                     }
                 };
 
+                const closeScannerAndBack = () => {
+                    stopScanner();
+                    currentView.value = 'dashboard';
+                }
+
+                // SCANNER LOGIC
+                const toggleScanner = () => {
+                    if (showScanner.value) {
+                        stopScanner();
+                    } else {
+                        showScanner.value = true;
+                        nextTick(() => {
+                            html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+                            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+                        });
+                    }
+                };
+
+                const onScanSuccess = (decodedText) => {
+                    newItemName.value = decodedText;
+                    // Play beep ?
+                    stopScanner();
+                    nextTick(() => itemInput.value?.focus());
+                };
+
+                const onScanFailure = (error) => {
+                    // console.warn(error);
+                };
+
+                const stopScanner = () => {
+                    showScanner.value = false;
+                    if (html5QrcodeScanner) {
+                        html5QrcodeScanner.clear().catch(error => console.error("Failed to clear html5QrcodeScanner. ", error));
+                        html5QrcodeScanner = null;
+                    }
+                };
+
+                // PDF EXPORT
+                const exportPdf = (type) => {
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF();
+
+                    if (type === 'inventory') {
+                        doc.text("Giacenza Totale Magazzino", 14, 20);
+                        doc.setFontSize(10);
+                        doc.text(`Generato il: ${new Date().toLocaleString()}`, 14, 28);
+
+                        const tableData = filteredInventory.value.map(item => [item.name, item.quantity]);
+
+                        doc.autoTable({
+                            startY: 35,
+                            head: [['Prodotto', 'Quantità']],
+                            body: tableData,
+                        });
+                        doc.save(`Giacenza_${new Date().toISOString().slice(0, 10)}.pdf`);
+                    } else if (type === 'session') {
+                        const sess = activeSession.value;
+                        doc.text(`Sessione: ${sess.name}`, 14, 20);
+                        doc.setFontSize(10);
+                        doc.text(`Data: ${formatDate(sess.createdAt)}`, 14, 28);
+
+                        const tableData = sess.items.map(item => [item.name, item.quantity]);
+
+                        doc.autoTable({
+                            startY: 35,
+                            head: [['Prodotto', 'Quantità']],
+                            body: tableData,
+                        });
+                        doc.save(`Sessione_${sess.name}.pdf`);
+                    }
+                };
+
                 const formatDate = (iso) => {
                     if (!iso) return '';
                     return new Date(iso).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -416,9 +528,10 @@
                 };
 
                 return {
-                    currentView, isOnline, newSessionName, newItemName, newItemQty, searchQuery, itemInput,
+                    currentView, isOnline, newSessionName, newItemName, newItemQty, searchQuery, itemInput, showScanner,
                     openSessions, closedSessions, activeSession, filteredInventory,
-                    createSession, openSession, addItem, removeItem, closeActiveSession, formatDate
+                    createSession, openSession, addItem, removeItem, closeActiveSession, formatDate, closeScannerAndBack,
+                    toggleScanner, stopScanner, exportPdf
                 };
             }
         }).mount('#app');
