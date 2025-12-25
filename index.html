@@ -558,9 +558,15 @@
                         (sess.items || []).forEach(item => {
                             const b = item.barcode;
                             const prod = productRegistry.value[b] || { name: 'Unknown', unitsPerBox: 1 };
-                            const curr = map.get(b) || { barcode: b, name: prod.name, unitsPerBox: prod.unitsPerBox, quantity: 0 };
+                            const curr = map.get(b) || { barcode: b, name: prod.name, unitsPerBox: prod.unitsPerBox, quantity: 0, caricoPZ: 0, scaricoPZ: 0 };
                             const impact = item.quantity * prod.unitsPerBox;
-                            curr.quantity += (sess.type === 'carico' ? impact : -impact);
+                            if (sess.type === 'carico') {
+                                curr.caricoPZ += impact;
+                                curr.quantity += impact;
+                            } else {
+                                curr.scaricoPZ += impact;
+                                curr.quantity -= impact;
+                            }
                             map.set(b, curr);
                         });
                     });
@@ -693,7 +699,7 @@
                     doc.setFontSize(8);
                     doc.text(`Doc ID: ${Date.now()} | Generato: ${new Date().toLocaleString('it-IT')}`, 15, 60);
 
-                    // Table with Notes
+                    // Table
                     doc.autoTable({
                         startY: 65,
                         head: [headers],
@@ -701,8 +707,18 @@
                         theme: 'striped',
                         headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 10 },
                         bodyStyles: { fontSize: 9, cellPadding: 5 },
-                        columnStyles: { [headers.length - 1]: { cellWidth: 50, fontStyle: 'italic' } }, // Note column styling
-                        margin: { left: 15, right: 15 }
+                        margin: { left: 15, right: 15 },
+                        didParseCell: function (data) {
+                            // Highlight the last column (Net Stock)
+                            if (data.section === 'body' && data.column.index === headers.length - 1) {
+                                const val = parseFloat(data.cell.raw);
+                                if (!isNaN(val)) {
+                                    if (val < 0) data.cell.styles.textColor = [225, 29, 72]; // Rose 600
+                                    else if (val > 0) data.cell.styles.textColor = [79, 70, 229]; // Indigo 600
+                                    data.cell.styles.fontStyle = 'bold';
+                                }
+                            }
+                        }
                     });
 
                     // Footer
@@ -717,8 +733,19 @@
                 };
 
                 const generateInventoryPDF = () => {
-                    const rows = inventory.value.map(i => [i.barcode, i.name, `${i.unitsPerBox} pz`, i.quantity]);
-                    generatePDF("Giacenza Globale Stock", ["Barcode", "Descrizione Prodotto", "Confezione", "Totale Pezzi"], rows, "Giacenza_DiaTrack.pdf");
+                    const rows = inventory.value.map(i => [
+                        i.barcode,
+                        i.name,
+                        i.caricoPZ,
+                        i.scaricoPZ,
+                        i.quantity
+                    ]);
+                    generatePDF(
+                        "Giacenza Magazzino (Carico vs Scarico)",
+                        ["Barcode", "Articolo", "Tot. Caricato", "Tot. Scaricato", "Giacenza Netta"],
+                        rows,
+                        "Giacenza_DiaTrack.pdf"
+                    );
                 };
 
                 const generateSessionPDF = (sess) => {
